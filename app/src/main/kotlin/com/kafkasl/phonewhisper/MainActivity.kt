@@ -51,6 +51,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var checkMic: CheckRow
     private lateinit var checkAcc: CheckRow
     private lateinit var checkModel: CheckRow
+    private lateinit var checkBatt: CheckRow
     private lateinit var checklistWrap: View
 
     // ---- settings ----
@@ -168,7 +169,8 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
         checkModel = checkRow("Speech model", "Download one in the Models tab") { show(R.id.nav_models); }
-        checklistWrap = section("Setup", listOf(checkMic.view, checkAcc.view, checkModel.view))
+        checkBatt = checkRow("Keep running in background", "Stops Android putting Utter to sleep") { requestBatteryExemption() }
+        checklistWrap = section("Setup", listOf(checkMic.view, checkAcc.view, checkModel.view, checkBatt.view))
         root.addView(checklistWrap)
 
         // How to use
@@ -433,8 +435,7 @@ class MainActivity : AppCompatActivity() {
         // Reliability
         root.addView(section("Reliability", listOf(
             settingsRow("Battery optimisation", "Set to Unrestricted so Android doesn't stop the bubble") {
-                try { startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
-                catch (_: Exception) { startActivity(Intent(Settings.ACTION_SETTINGS)) }
+                requestBatteryExemption()
             },
         )))
 
@@ -554,6 +555,20 @@ class MainActivity : AppCompatActivity() {
         else -> "1. Tap a text box in any app.\n2. Hold the bubble while you speak and let go, or tap once to start and tap again to finish.\nYour words appear where the cursor is."
     }
 
+    private fun isBatteryExempt() =
+        (getSystemService(POWER_SERVICE) as android.os.PowerManager).isIgnoringBatteryOptimizations(packageName)
+
+    @android.annotation.SuppressLint("BatteryLife")
+    private fun requestBatteryExemption() {
+        try {
+            startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                android.net.Uri.parse("package:$packageName")))
+        } catch (_: Exception) {
+            try { startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
+            catch (_: Exception) { startActivity(Intent(Settings.ACTION_SETTINGS)) }
+        }
+    }
+
     private fun refresh() {
         val audio = hasPerm(Manifest.permission.RECORD_AUDIO)
         val acc = WhisperAccessibilityService.instance != null
@@ -569,7 +584,9 @@ class MainActivity : AppCompatActivity() {
         val active = MODEL_CATALOG.firstOrNull { it.archive == cur }
         setCheck(checkModel, hasModel, active?.name ?: "Installed", "Tap to choose a model")
 
-        val ready = audio && acc && hasModel
+        val batt = isBatteryExempt()
+        setCheck(checkBatt, batt, "Unrestricted", "Tap to allow")
+        val ready = audio && acc && hasModel && batt
         heroTitle.text = if (ready) "Ready to dictate" else "Almost there"
         heroBody.text = if (ready) "Open any app, tap a text box, and use the bubble."
         else "Finish the steps below and you're set."

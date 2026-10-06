@@ -44,11 +44,11 @@ class WhisperAccessibilityService : AccessibilityService() {
         private const val FEEDBACK_OFFSET_DP = 64
         private const val HOLD_MS = 300L
 
-        private const val COLOR_IDLE = 0xDD1C1C1E.toInt()
-        private const val COLOR_RECORDING = 0xDDEF4444.toInt()
-        private const val COLOR_BUSY = 0xDD6B6B6B.toInt()
-        private const val COLOR_FEEDBACK_BG = 0xEE1C1C1E.toInt()
-        private const val COLOR_RING = 0xFFE8EAED.toInt()
+        private const val COLOR_IDLE = 0xEE02042C.toInt()
+        private const val COLOR_RECORDING = 0xEE03163A.toInt()
+        private const val COLOR_BUSY = 0xEE0A1236.toInt()
+        private const val COLOR_FEEDBACK_BG = 0xEE02042C.toInt()
+        private const val COLOR_RING = 0xFF6BFFB0.toInt()
     }
 
     private enum class State { IDLE, RECORDING, TRANSCRIBING }
@@ -187,14 +187,13 @@ class WhisperAccessibilityService : AccessibilityService() {
         }
 
         val img = ImageView(this).apply {
-            setImageResource(R.drawable.ic_mic)
             scaleType = ImageView.ScaleType.CENTER_INSIDE
             setPadding(pad, pad, pad, pad)
             background = circle(COLOR_IDLE)
         }
 
-        val wave = WaveformView(this).apply { visibility = View.GONE }
-        val wavePad = (13 * dp).toInt()
+        val wave = WaveformView(this)
+        val wavePad = (7 * dp).toInt()
 
         val overlay = FrameLayout(this).apply {
             addView(ring, FrameLayout.LayoutParams(ringSize, ringSize, Gravity.CENTER))
@@ -337,6 +336,7 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     private fun circle(color: Int) = GradientDrawable().apply {
         shape = GradientDrawable.OVAL; setColor(color)
+        setStroke((1.5f * dp).toInt(), 0x886BFFB0.toInt())
     }
 
     private fun pill(color: Int) = GradientDrawable().apply {
@@ -351,9 +351,12 @@ class WhisperAccessibilityService : AccessibilityService() {
             val recording = color == COLOR_RECORDING
             val idle = color == COLOR_IDLE
             // mic icon only when idle; waveform while recording; spinner (setBusy) while processing
-            button?.setImageResource(if (idle) R.drawable.ic_mic else android.R.color.transparent)
-            waveform?.visibility = if (recording) View.VISIBLE else View.GONE
-            if (!recording) waveform?.clear()
+            waveform?.setMode(when {
+                recording -> WaveformView.Mode.RECORDING
+                idle -> WaveformView.Mode.IDLE
+                else -> WaveformView.Mode.BUSY
+            })
+            if (idle) waveform?.clear()
             if (overlayVisible) overlayView?.animate()?.alpha(targetAlpha())?.setDuration(150)?.start()
             if (idle) updateOverlayVisibility() else Unit
         }
@@ -361,7 +364,7 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     private fun setBusy(visible: Boolean) {
         handler.post {
-            spinner?.visibility = if (visible) View.VISIBLE else View.GONE
+            // transcribing is shown by the breathing wave (see setAppearance), no ring
         }
     }
 
