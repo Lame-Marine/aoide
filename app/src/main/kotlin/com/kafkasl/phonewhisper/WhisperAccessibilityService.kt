@@ -20,6 +20,7 @@ import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.ProgressBar
@@ -55,6 +56,8 @@ class WhisperAccessibilityService : AccessibilityService() {
     private var overlayView: FrameLayout? = null
     private var button: ImageView? = null
     private var spinner: ProgressBar? = null
+    private var waveform: WaveformView? = null
+    private var overlayVisible = true
     private var feedbackView: TextView? = null
     private var layoutParams: WindowManager.LayoutParams? = null
     private var feedbackLayoutParams: WindowManager.LayoutParams? = null
@@ -77,11 +80,56 @@ class WhisperAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         instance = this
         showOverlay()
+        setOverlayVisible(false)
+        handler.postDelayed(evalVisibility, 300)
         // Try to load local model in background
         thread { initLocalModel() }
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+    private val evalVisibility = Runnable { updateOverlayVisibility() }
+
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        // Debounce bursts of events (keyboard animations fire many)
+        handler.removeCallbacks(evalVisibility)
+        handler.postDelayed(evalVisibility, 150)
+    }
+
+    /** True when a keyboard is showing or an editable field has input focus. */
+    private fun textFieldActive(): Boolean {
+        val imeShown = try {
+            windows.any { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
+        } catch (_: Exception) { false }
+        if (imeShown) return true
+        return try {
+            val root = rootInActiveWindow
+            root?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.isEditable == true
+        } catch (_: Exception) { false }
+    }
+
+    private fun updateOverlayVisibility() {
+        val shouldShow = state != State.IDLE || textFieldActive()
+        if (shouldShow == overlayVisible) return
+        setOverlayVisible(shouldShow)
+    }
+
+    private fun setOverlayVisible(visible: Boolean) {
+        val view = overlayView ?: return
+        val params = layoutParams ?: return
+        val wm = getSystemService(WINDOW_SERVICE) as WindowManager
+        overlayVisible = visible
+        params.flags = if (visible) WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+        else WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        try { wm.updateViewLayout(view, params) } catch (_: Exception) {}
+        view.animate().cancel()
+        if (visible) {
+            view.visibility = View.VISIBLE
+            view.animate().alpha(1f).setDuration(150).start()
+        } else {
+            view.animate().alpha(0f).setDuration(150).withEndAction {
+                if (!overlayVisible) view.visibility = View.GONE
+            }.start()
+        }
+    }
     override fun onInterrupt() {}
 
     override fun onDestroy() {
@@ -134,9 +182,13 @@ class WhisperAccessibilityService : AccessibilityService() {
             background = circle(COLOR_IDLE)
         }
 
+        val wave = WaveformView(this).apply { visibility = View.GONE }
+        val wavePad = (13 * dp).toInt()
+
         val overlay = FrameLayout(this).apply {
             addView(ring, FrameLayout.LayoutParams(ringSize, ringSize, Gravity.CENTER))
             addView(img, FrameLayout.LayoutParams(buttonSize, buttonSize, Gravity.CENTER))
+            addView(wave, FrameLayout.LayoutParams(buttonSize - wavePad * 2, buttonSize - wavePad * 2, Gravity.CENTER))
         }
 
         val params = WindowManager.LayoutParams(
@@ -214,6 +266,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         overlayView = overlay
         button = img
         spinner = ring
+        waveform = wave
         feedbackView = feedback
         layoutParams = params
         feedbackLayoutParams = feedbackParams
@@ -231,6 +284,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         }
         button = null
         spinner = null
+        waveform = null
         layoutParams = null
         feedbackLayoutParams = null
     }
@@ -246,7 +300,16 @@ class WhisperAccessibilityService : AccessibilityService() {
     }
 
     private fun setAppearance(color: Int) {
-        handler.post { button?.background = circle(color) }
+        handler.post {
+            button?.background = circle(color)
+            val recording = color == COLOR_RECORDING
+            val idle = color == COLOR_IDLE
+            // mic icon only when idle; waveform while recording; spinner (setBusy) while processing
+            button?.setImageResource(if (idle) R.drawable.ic_mic else android.R.color.transparent)
+            waveform?.visibility = if (recording) View.VISIBLE else View.GONE
+            if (!recording) waveform?.clear()
+            if (idle) updateOverlayVisibility() else Unit
+        }
     }
 
     private fun setBusy(visible: Boolean) {
@@ -331,13 +394,16 @@ class WhisperAccessibilityService : AccessibilityService() {
         state = State.RECORDING
         setBusy(false)
         setAppearance(COLOR_RECORDING)
-        startPulse()
 
         thread {
             val buf = ByteArray(bufSize)
             while (state == State.RECORDING) {
                 val n = audioRecord?.read(buf, 0, buf.size) ?: break
-                if (n > 0) pcmStream?.write(buf, 0, n)
+                if (n > 0) {
+                    pcmStream?.write(buf, 0, n)
+                    val lvl = WaveformView.levelOf(buf, n)
+                    handler.post { waveform?.push(lvl) }
+                }
             }
         }
     }
