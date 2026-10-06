@@ -41,7 +41,8 @@ class ModelDownloaderTest {
     }
 
     @Test fun `catalog has expected structure`() {
-        assertEquals(4, MODEL_CATALOG.size)
+        assertTrue(MODEL_CATALOG.size >= 10)
+        assertEquals(MODEL_CATALOG.size, MODEL_CATALOG.map { it.archive }.toSet().size)
         assertTrue(MODEL_CATALOG.any { it.recommended })
         assertTrue(MODEL_CATALOG.all { it.archive.startsWith("sherpa-onnx-") })
         assertTrue(MODEL_CATALOG.all { it.sizeMb > 0 })

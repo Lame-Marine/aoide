@@ -40,7 +40,8 @@ class MainActivity : AppCompatActivity() {
         val radio: MaterialRadioButton,
         val progress: LinearProgressIndicator,
         val subtitle: TextView,
-        val dlBtn: MaterialButton
+        val dlBtn: MaterialButton,
+        val delBtn: MaterialButton
     )
 
     private data class PromptRowViews(
@@ -102,7 +103,20 @@ class MainActivity : AppCompatActivity() {
         // Local Models section
         modelContainer = vertical(0)
         modelContainer.addView(sectionHeader("Local models"))
-        for (m in MODEL_CATALOG) modelContainer.addView(buildModelRow(m))
+        var lastFamily = ""
+        for (m in MODEL_CATALOG) {
+            if (m.family != lastFamily) {
+                lastFamily = m.family
+                modelContainer.addView(TextView(this).apply {
+                    text = m.family
+                    textSize = 12f
+                    setTypeface(typeface, Typeface.BOLD)
+                    alpha = 0.7f
+                    setPadding(dp(24), dp(14), dp(24), dp(2))
+                })
+            }
+            modelContainer.addView(buildModelRow(m))
+        }
         root.addView(modelContainer)
 
         // --- Post-Processing Section ---
@@ -168,6 +182,12 @@ class MainActivity : AppCompatActivity() {
             setTextColor(attrColor(com.google.android.material.R.attr.colorPrimary))
         }
         
+        val delBtn = MaterialButton(this, null, com.google.android.material.R.attr.materialIconButtonStyle).apply {
+            text = "\uD83D\uDDD1"
+            textSize = 16f
+            setOnClickListener { confirmDelete(model) }
+        }
+
         val progress = LinearProgressIndicator(this).apply {
             visibility = View.GONE
             layoutParams = LinearLayout.LayoutParams(LP_MATCH, dp(4)).apply {
@@ -179,12 +199,13 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             addView(dlBtn)
+            addView(delBtn)
             addView(radio)
         }
 
         val row = settingsRow(
             if (model.recommended) model.name else model.name,
-            "${model.quality} · ${model.sizeMb} MB",
+            "${model.langs} · ${model.note} · ${model.sizeMb} MB download",
             rightContainer
         ) {
             onModelAction(model)
@@ -194,7 +215,7 @@ class MainActivity : AppCompatActivity() {
         textContainer.addView(progress)
         
         modelRows[model.archive] = ModelRowViews(
-            radio, progress, textContainer.findViewWithTag("subtitle"), dlBtn
+            radio, progress, textContainer.findViewWithTag("subtitle"), dlBtn, delBtn
         )
         refreshCard(model)
         
@@ -240,6 +261,26 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun confirmDelete(model: Model) {
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Uninstall ${model.name}?")
+            .setMessage("This removes the downloaded files from your phone. You can download it again later.")
+            .setPositiveButton("Uninstall") { _, _ ->
+                val wasActive = prefs().getString("model_name", "") == model.archive
+                if (wasActive) WhisperAccessibilityService.instance?.unloadModel()
+                ModelDownloader.delete(this, model)
+                if (wasActive) {
+                    prefs().edit().putString("model_name", "").apply()
+                    val next = MODEL_CATALOG.firstOrNull { ModelDownloader.isInstalled(this, it) }
+                    if (next != null) selectModel(next.archive)
+                }
+                refreshAllCards(); refresh()
+                toast("${model.name} uninstalled")
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     private fun selectModel(archive: String) {
         prefs().edit().putString("model_name", archive).apply()
         WhisperAccessibilityService.instance?.reloadModel()
@@ -254,9 +295,10 @@ class MainActivity : AppCompatActivity() {
         views.radio.isChecked = active
         views.radio.visibility = if (installed) View.VISIBLE else View.GONE
         views.dlBtn.visibility = if (installed) View.GONE else View.VISIBLE
+        views.delBtn.visibility = if (installed) View.VISIBLE else View.GONE
         
         if (views.progress.visibility == View.GONE) {
-            views.subtitle.text = "${model.quality} · ${model.sizeMb} MB"
+            views.subtitle.text = "${model.langs} · ${model.note} · ${model.sizeMb} MB download"
         }
     }
 

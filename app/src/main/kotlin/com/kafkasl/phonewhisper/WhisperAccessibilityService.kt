@@ -164,6 +164,9 @@ class WhisperAccessibilityService : AccessibilityService() {
     /** Reload local model (called from MainActivity when settings change) */
     fun reloadModel() { thread { initLocalModel() } }
 
+    /** Drop the loaded engine (used when its model is uninstalled). */
+    fun unloadModel() { localTranscriber = null }
+
     // --- Overlay ---
 
     private fun showOverlay() {

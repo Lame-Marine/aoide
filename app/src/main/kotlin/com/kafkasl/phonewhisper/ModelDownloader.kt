@@ -11,20 +11,54 @@ import java.util.concurrent.TimeUnit
 data class Model(
     val name: String,
     val archive: String,
-    val sizeMb: Int,
-    val quality: String,
+    val sizeMb: Int,          // download size (compressed archive)
+    val family: String,
+    val langs: String,
+    val note: String,
     val recommended: Boolean = false,
 )
 
+private const val EN = "English"
+private const val MULTI99 = "99 languages (auto-detect)"
+private const val EU25 = "25 European languages (auto-detect)"
+
 val MODEL_CATALOG = listOf(
-    Model("Parakeet 110M", "sherpa-onnx-nemo-parakeet_tdt_ctc_110m-en-36000-int8",
-        100, "★★★ Best value", recommended = true),
-    Model("Whisper Base", "sherpa-onnx-whisper-base.en",
-        199, "★★★"),
-    Model("Parakeet 0.6B", "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
-        465, "★★★★ Best quality"),
+    // --- NVIDIA Parakeet ---
+    Model("Parakeet 110M (CTC)", "sherpa-onnx-nemo-parakeet_tdt_ctc_110m-en-36000-int8",
+        104, "Parakeet", EN, "Very fast, light", recommended = true),
+    Model("Parakeet 110M (TDT)", "sherpa-onnx-nemo-parakeet_tdt_transducer_110m-en-36000-int8",
+        108, "Parakeet", EN, "Very fast, light"),
+    Model("Parakeet 0.6B v2", "sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8",
+        482, "Parakeet", EN, "High accuracy, English"),
+    Model("Parakeet 0.6B v3", "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
+        487, "Parakeet", EU25, "High accuracy, multilingual"),
+    // --- OpenAI Whisper ---
+    Model("Whisper Tiny (English)", "sherpa-onnx-whisper-tiny.en",
+        118, "Whisper", EN, "Smallest, lowest accuracy"),
+    Model("Whisper Tiny", "sherpa-onnx-whisper-tiny",
+        116, "Whisper", MULTI99, "Smallest, lowest accuracy"),
+    Model("Whisper Base (English)", "sherpa-onnx-whisper-base.en",
+        208, "Whisper", EN, "Good balance"),
+    Model("Whisper Base", "sherpa-onnx-whisper-base",
+        207, "Whisper", MULTI99, "Good balance"),
+    Model("Whisper Small (English)", "sherpa-onnx-whisper-small.en",
+        635, "Whisper", EN, "More accurate, slower"),
+    Model("Whisper Small", "sherpa-onnx-whisper-small",
+        639, "Whisper", MULTI99, "More accurate, slower"),
+    Model("Whisper Distil Small (English)", "sherpa-onnx-whisper-distil-small.en",
+        453, "Whisper", EN, "Distilled, faster than Small"),
+    Model("Whisper Turbo", "sherpa-onnx-whisper-turbo",
+        563, "Whisper", MULTI99, "Most accurate here, heaviest"),
+    // --- Moonshine ---
     Model("Moonshine Tiny", "sherpa-onnx-moonshine-tiny-en-int8",
-        103, "★★☆ Fast"),
+        107, "Moonshine", EN, "Fast, short clips"),
+    Model("Moonshine Base", "sherpa-onnx-moonshine-base-en-int8",
+        250, "Moonshine", EN, "Fast, more accurate"),
+    // --- NVIDIA FastConformer ---
+    Model("FastConformer CTC", "sherpa-onnx-nemo-fast-conformer-ctc-en-24500-int8",
+        104, "FastConformer", EN, "Fast, light"),
+    Model("FastConformer CTC (EN/DE/ES/FR)", "sherpa-onnx-nemo-fast-conformer-ctc-en-de-es-fr-14288-int8",
+        102, "FastConformer", "English, German, Spanish, French", "Fast, light"),
 )
 
 sealed class DownloadState {
@@ -65,6 +99,7 @@ object ModelDownloader {
                 val scratch = File(ctx.cacheDir, "extract-${model.archive}")
                 scratch.deleteRecursively()
                 extractTarBz2(tmpFile, scratch)
+                scratch.listFiles()?.forEach { slimDown(it) }
                 outDir.mkdirs()
                 scratch.listFiles()?.forEach { child ->
                     val target = File(outDir, child.name)
@@ -82,6 +117,17 @@ object ModelDownloader {
                 tmpFile.delete()
             }
         }.start()
+    }
+
+    /** Drop sample audio and full-precision weights when an int8 twin exists (saves disk). */
+    private fun slimDown(dir: File) {
+        if (!dir.isDirectory) return
+        File(dir, "test_wavs").deleteRecursively()
+        dir.listFiles()?.forEach { f ->
+            if (f.name.endsWith(".onnx") && !f.name.contains("int8")) {
+                if (File(dir, f.name.removeSuffix(".onnx") + ".int8.onnx").exists()) f.delete()
+            }
+        }
     }
 
     fun delete(ctx: Context, model: Model) =
