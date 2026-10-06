@@ -99,13 +99,15 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     /** True when a keyboard is showing or an editable field has input focus. */
     private fun textFieldActive(): Boolean {
-        val imeShown = try {
-            windows.any { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
-        } catch (_: Exception) { false }
-        if (imeShown) return true
+        // Only trust a keyboard window that actually occupies screen space. A focused field alone is not
+        // enough: it stays focused after the keyboard is collapsed.
+        val minH = (120 * dp).toInt()
         return try {
-            val root = rootInActiveWindow
-            root?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.isEditable == true
+            val r = android.graphics.Rect()
+            windows.any {
+                if (it.type != AccessibilityWindowInfo.TYPE_INPUT_METHOD) false
+                else { it.getBoundsInScreen(r); r.height() >= minH && r.top < screenH - minH }
+            }.also { Log.d(TAG, "textFieldActive=$it") }
         } catch (_: Exception) { false }
     }
 
