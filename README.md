@@ -1,160 +1,58 @@
-<p align="center">
-  <img src="docs/logo.svg" width="128" height="128" alt="Phone Whisper Logo">
-</p>
+# Utter
 
-# Phone Whisper
+Offline voice typing for Android. A small floating bubble sits over your keyboard; speak, and your words are
+typed into whatever text field is focused. Everything is processed **on your phone**: no account, no cloud, no
+word limits.
 
-Push-to-talk dictation for Android.
+It works with the keyboard you already use (including Gboard), because it types through an accessibility
+service instead of replacing your keyboard.
 
-Phone Whisper lets you speak into most apps without switching keyboards. Tap the floating button, speak, tap again, and your text is inserted into the currently focused text field when the app exposes a standard Android input field.\
+## Features
 
-It supports:
-
-- **Local on-device transcription** with sherpa-onnx
-- **Cloud transcription** with OpenAI Whisper
-- **Optional cleanup** with OpenAI to fix punctuation and grammar
-
-If you try it and it genuinely saves you time, consider [sponsoring](https://github.com/sponsors/kafkasl)
-
-
-## Why I built this
-
-- I like SwiftKey and want to keep it as keyboard but...
-- Most keyboard dictation felt too inaccurate
-- Gemini's voice input auto submits your transcription (which is pretty bad) so you can't edit it before sending
-- Post processing yields much better results, specially adding a list of keywords and technical terms you often use
-- Inserting text into the field you're already using lets you keep editing it like any other draft.
+- **Bubble** that appears only while a keyboard is up. Trigger by tap, hold-to-talk, or both. Adjustable
+  idle opacity; remembers where you drag it, and follows screen rotation.
+- **Fully local speech recognition** via [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx). Pick a model in the
+  app: NVIDIA Parakeet, OpenAI Whisper (tiny to turbo), Moonshine, FastConformer. Installed models are listed first,
+  the active one on top; models can be uninstalled.
+- **Language**: auto-detect or fixed (for multilingual Whisper models).
+- **Silence trimming** (Silero VAD): skips silence and ignores clips with no speech.
+- **Text cleanup**, all rule-based and offline: filler-word removal (editable list), capitalisation, optional
+  spoken punctuation ("comma", "new line"...).
+- **History** of past dictations, kept only on the phone; keep the last 25 to 500, or turn it off.
+- **Debug mode** (off by default, switches itself off after 24 hours): records service and microphone events and a
+  device report you can copy. Never records audio or dictated text.
 
 ## Install
 
-### Easiest: download the APK
+Utter is sideloaded; it is not on Google Play (Play restricts accessibility apps).
 
-Grab the latest APK from [GitHub Releases](https://github.com/kafkasl/phone-whisper/releases).
-
-Open it on your phone, install it, then launch the app once to finish setup.
-
-### Build from source
-
-Requires JDK 17 and Android SDK.
+Requirements: JDK 17 and the Android SDK (platform 34+). Android Studio's bundled JDK works.
 
 ```bash
-git clone https://github.com/kafkasl/phone-whisper.git && cd phone-whisper
-make build
+# one-time: fetch the prebuilt sherpa-onnx native libraries (they are not stored in git)
+tools/fetch-native-libs.sh
+
+./gradlew assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-APK output:
+On the phone:
 
-```bash
-app/build/outputs/apk/debug/app-debug.apk
-```
+1. Open Utter and grant the microphone permission.
+2. Turn on the Utter accessibility service (Settings > Accessibility > Installed apps).
+   On Android 13+ a sideloaded app may first need **App info > ⋮ > Allow restricted settings**.
+3. Open the **Models** tab and download a model. Whisper Base (English) or Parakeet 110M are good starting points.
+4. Set Utter to **Unrestricted** under battery settings so Android does not stop the service.
+   Samsung phones also have *Battery > Background usage limits > Never sleeping apps*.
 
-If you use ADB:
-
-```bash
-make adb-install
-```
-
-## How it works
-
-1. A small overlay button floats on screen
-2. Tap once to start recording
-3. Tap again to stop
-4. Audio is transcribed locally or in the cloud
-5. The text is inserted into the focused text field
-6. If insertion fails, the text is copied to the clipboard
-
-## Setup
-
-### First-time setup
-
-1. Open **Phone Whisper**
-2. Grant the **audio recording** permission
-3. Enable the **Accessibility Service**
-4. Choose your transcription mode:
-   - **Local**: download a model in the app
-   - **Cloud**: paste your OpenAI API key
-
-Once setup is done, the floating button is ready.
-
-## Why does it need Accessibility?
-
-Phone Whisper uses Android Accessibility Service for one narrow reason: to insert dictated text into the currently focused text field across apps.
-
-It does **not** replace your keyboard. It does **not** run background automation. It only acts after you explicitly tap the overlay button.
+Only `arm64-v8a` devices are supported (nearly all modern phones). Android 11 or newer.
 
 ## Privacy
 
-Phone Whisper supports two modes:
+Speech is processed on the device and is never uploaded. The only network use is downloading a model when you tap
+download. See [PRIVACY.md](PRIVACY.md).
 
-- **Local mode**: audio stays on-device
-- **Cloud mode**: audio is sent directly from your device to OpenAI's transcription API
-- **Optional cleanup**: transcript text is sent directly from your device to OpenAI's chat API
+## Credits and licence
 
-I don't run a backend for this app. In cloud mode, requests go straight from your phone to OpenAI using your own API key.
-
-Full policy: [PRIVACY.md](PRIVACY.md)
-
-## Local models
-
-Models are stored in app storage under:
-
-```bash
-/data/data/com.kafkasl.phonewhisper/files/models/
-```
-
-Current catalog:
-
-| Model | Size | Notes |
-|---|---:|---|
-| Parakeet 110M | 100 MB | Best default |
-| Whisper Base | 199 MB | Solid baseline |
-| Parakeet 0.6B | 465 MB | Best quality |
-| Moonshine Tiny | 103 MB | Fastest |
-
-The app downloads and extracts models directly from the sherpa-onnx release archives.
-
-## Development
-
-```bash
-make build       # build debug APK
-make test        # run unit tests
-make adb-install # build + install via ADB
-make clean       # clean build artifacts
-```
-
-## App compatibility
-
-Phone Whisper works best in apps that use standard Android text fields.
-Some apps use custom text surfaces or terminal-style views, which may not support direct accessibility paste.
-When insertion is not possible, Phone Whisper falls back to copying the transcript to the clipboard.
-
-### Termux
-
-Termux's main terminal area is not a standard Android text field, so direct insertion may not work there.
-
-To use Phone Whisper in Termux:
-
-1. Focus Termux
-2. Swipe the extra keys row (`ESC`, `CTRL`, `ALT`, arrows, etc.) left or right
-3. Switch to Termux's native text input box
-4. Dictate there
-
-Once text is inserted into the native input box, Termux sends it to the terminal normally.
-
-## Current limitations
-
-- Accessibility permission is required for cross-app insertion
-- Some apps may block paste or text injection
-- Some apps use custom input surfaces instead of standard Android text fields
-- Local models are large
-- Cloud mode requires your own OpenAI API key
-
-## Support the project
-
-If Phone Whisper saves you time, you can sponsor the project on GitHub:
-
-- https://github.com/sponsors/kafkasl
-
-## License
-
-Personal project. Do whatever you want with it.
+Utter is a fork of [Phone Whisper](https://github.com/kafkasl/phone-whisper) by Pol Alvarez, licensed under the
+Apache License 2.0, as is this project. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

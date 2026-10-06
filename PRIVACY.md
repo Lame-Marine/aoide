@@ -1,39 +1,30 @@
-# Privacy Policy for Phone Whisper
+# Privacy
 
-Phone Whisper is an Android dictation app that records speech, transcribes it, and inserts the result into text fields across apps.
+Utter is an Android dictation app. It records speech while you use the bubble, turns it into text on the
+device, and inserts the text into the focused field.
 
-## Data handling
+## What stays on your phone
 
-Phone Whisper supports two transcription modes.
+- **Audio**: processed in memory by an on-device speech model and discarded. It is never uploaded and never
+  written to storage.
+- **Dictated text**: inserted into the field you chose. If history is on, a copy is stored in the app's private
+  database on the phone (the last 25 to 500 entries, your choice). Turn history off, or clear it, in the app.
+- **Settings**: stored in the app's private storage.
 
-### Local mode
+## What uses the network
 
-In local mode, audio is processed on-device using local speech recognition models. Audio does not leave the device.
+Only downloading a speech model, when you tap its download button. The file comes from the
+[sherpa-onnx releases](https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models) on GitHub. Nothing else
+connects to the internet: there are no accounts, analytics, ads, crash reporting, or cloud transcription.
 
-### Cloud mode
+## Accessibility service
 
-In cloud mode, recorded audio is sent directly from the device to OpenAI's transcription API to generate text.
+Utter uses an accessibility service only to show the bubble next to the keyboard and to insert the transcribed text
+into the focused text field. It does not read, store, or transmit the contents of other apps.
 
-If optional cleanup is enabled, the transcribed text is also sent directly from the device to OpenAI's chat API to improve punctuation, capitalization, and clarity.
+## Debug mode
 
-## API keys
-
-If you use cloud features, your OpenAI API key is stored locally on your device in app storage and used to authenticate requests sent directly to OpenAI.
-
-I do not operate a relay server for these requests.
-
-## Accessibility Service
-
-Phone Whisper uses Android Accessibility Service only to identify the currently focused text field and insert dictated text after you explicitly interact with the floating overlay button.
-
-Phone Whisper is not designed to monitor browsing, collect screen content for analytics, or perform background automation.
-
-## Data collection
-
-I do not run a backend for Phone Whisper and do not collect user accounts, analytics, or uploaded recordings myself.
-
-Third-party services you choose to use, such as OpenAI, may process data according to their own terms and privacy policies.
-
-## Contact
-
-For questions about privacy, contact: pol.avms@gmail.com
+Off by default. When you switch it on it records technical events (service restarts, bubble visibility, microphone
+health, timings) and a device and settings summary in a private file on the phone, so you can copy it for a bug
+report. It never records audio or dictated text, switches itself off after 24 hours, and its log is deleted when it
+is turned off.

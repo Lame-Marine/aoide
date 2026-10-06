@@ -1,0 +1,19 @@
+Utter
+Copyright 2026 Lame-Marine
+
+This product is derived from "Phone Whisper" by Pol Alvarez
+(https://github.com/kafkasl/phone-whisper), licensed under the Apache License, Version 2.0.
+Changes include: removal of cloud transcription and cleanup, a redesigned interface, a larger on-device model
+catalogue with install/uninstall, voice-activity detection, offline text cleanup, history, language selection,
+trigger modes, and reliability work on the floating bubble.
+
+Third-party components:
+- sherpa-onnx (https://github.com/k2-fsa/sherpa-onnx), Apache-2.0: Kotlin API sources in
+  app/src/main/kotlin/com/k2fsa/sherpa/onnx and the prebuilt native libraries fetched by tools/fetch-native-libs.sh.
+- Silero VAD (https://github.com/snakers4/silero-vad), MIT: app/src/main/assets/silero_vad.onnx.
+- ONNX Runtime (https://github.com/microsoft/onnxruntime), MIT: bundled inside the native libraries.
+
+Speech models are downloaded by the user at runtime and are not part of this repository. Each model has its own
+licence; check it before redistributing a model.
+
+The app icon was generated with an AI image model and processed locally.
