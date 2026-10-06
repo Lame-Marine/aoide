@@ -487,6 +487,9 @@ class MainActivity : AppCompatActivity() {
         root.addView(section("About", listOf(
             infoRow("Privacy", "Audio is processed on this phone and never uploaded. The only network use is downloading models when you ask."),
             infoRow("Version", packageManager.getPackageInfo(packageName, 0).versionName ?: ""),
+            settingsRow("Open-source licences", "Components Utter is built from, and their licences") {
+                startActivity(Intent(this, LicensesActivity::class.java))
+            },
             debugToggleRow(),
             settingsRow("Debug report", "Device info and recorded events, to copy and share") { showDiagnostics() },
         )))

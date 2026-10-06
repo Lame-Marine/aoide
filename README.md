@@ -26,11 +26,14 @@ service instead of replacing your keyboard.
 
 Utter is sideloaded; it is not on Google Play (Play restricts accessibility apps).
 
-Requirements: JDK 17 and the Android SDK (platform 34+). Android Studio's bundled JDK works.
+Requirements: JDK 17, the Android SDK (platform 34+), and for the one-time native build the Android NDK r27 and
+CMake with Ninja. Android Studio's bundled JDK works.
 
 ```bash
-# one-time: fetch the prebuilt sherpa-onnx native libraries (they are not stored in git)
-tools/fetch-native-libs.sh
+# one-time: build the speech-engine native libraries WITHOUT text-to-speech.
+# (The prebuilt upstream libraries link espeak-ng, which is GPL-3.0; building without it keeps the app free of
+#  GPL code. The script downloads the sherpa-onnx source and ONNX Runtime, builds, and checks the result.)
+ANDROID_NDK=/path/to/ndk/27.0.12077973 WORK=/path/without/spaces tools/build-native-libs.sh
 
 ./gradlew assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
@@ -55,4 +58,6 @@ download. See [PRIVACY.md](PRIVACY.md).
 ## Credits and licence
 
 Utter is a fork of [Phone Whisper](https://github.com/kafkasl/phone-whisper) by Pol Alvarez, licensed under the
-Apache License 2.0, as is this project. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+Apache License 2.0, as is this project. See [LICENSE](LICENSE) and [NOTICE](NOTICE). The full third-party
+licence texts are bundled in the app (Settings > About > Open-source licences) and live in
+`app/src/main/assets/licenses/`.
