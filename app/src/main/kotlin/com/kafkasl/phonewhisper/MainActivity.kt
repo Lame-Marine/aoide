@@ -12,6 +12,7 @@ import android.provider.Settings
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -240,22 +241,62 @@ class MainActivity : AppCompatActivity() {
     //  MODELS
     // =====================================================================
 
+    private lateinit var modelsRoot: LinearLayout
+    private val modelRowView = mutableMapOf<String, View>()
+    private var modelsSig = ""
+
     private fun buildModels(): LinearLayout {
-        val root = vertical(0)
-        root.addView(pageTitle("Speech models", "Everything runs on your phone. Downloads are the only time the app goes online."))
-        var family = ""
-        var rows = mutableListOf<View>()
-        fun flush() {
-            if (rows.isNotEmpty()) root.addView(section(family, rows.toList()))
-            rows = mutableListOf()
+        modelsRoot = vertical(0)
+        for (m in MODEL_CATALOG) modelRowView[m.archive] = buildModelRow(m)
+        layoutModels(force = true)
+        return modelsRoot
+    }
+
+    /**
+     * Installed models first (active one on top), then everything still available to download, grouped by
+     * family. Rows are reused, so a download in progress keeps its progress bar when rows move.
+     */
+    private fun layoutModels(force: Boolean = false) {
+        if (!::modelsRoot.isInitialized) return
+        val active = prefs().getString("model_name", "") ?: ""
+        val installed = MODEL_CATALOG.filter { ModelDownloader.isInstalled(this, it) }
+        val ordered = installed.sortedBy { if (it.archive == active) 0 else 1 }   // stable: keeps catalog order after the active one
+        val sig = ordered.joinToString("|") { it.archive } + "#" + active
+        if (!force && sig == modelsSig) return
+        modelsSig = sig
+
+        modelRowView.values.forEach { (it.parent as? ViewGroup)?.removeView(it) }
+        modelsRoot.removeAllViews()
+        modelsRoot.addView(pageTitle("Speech models", "Everything runs on your phone. Downloads are the only time the app goes online."))
+
+        if (ordered.isEmpty()) {
+            modelsRoot.addView(section("Installed", listOf(infoRow("No models installed yet", "Pick one below to download it"))))
+        } else {
+            modelsRoot.addView(section("Installed (${ordered.size})", ordered.map { modelRowView[it.archive]!! }))
         }
-        for (m in MODEL_CATALOG) {
-            if (m.family != family) { flush(); family = m.family }
-            rows.add(buildModelRow(m))
+
+        val rest = MODEL_CATALOG.filter { it !in ordered }
+        if (rest.isNotEmpty()) {
+            modelsRoot.addView(TextView(this).apply {
+                text = "Available to download"
+                textSize = 18f
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(attrColor(android.R.attr.textColorPrimary))
+                setPadding(dp(24), dp(24), dp(24), dp(2))
+            })
+            var family = ""
+            var rows = mutableListOf<View>()
+            fun flush() {
+                if (rows.isNotEmpty()) modelsRoot.addView(section(family, rows.toList()))
+                rows = mutableListOf()
+            }
+            for (m in rest) {
+                if (m.family != family) { flush(); family = m.family }
+                rows.add(modelRowView[m.archive]!!)
+            }
+            flush()
         }
-        flush()
-        root.addView(spacer(24))
-        return root
+        modelsRoot.addView(spacer(24))
     }
 
     private fun buildModelRow(model: Model): View {
@@ -374,7 +415,10 @@ class MainActivity : AppCompatActivity() {
         if (views.progress.visibility == View.GONE) views.subtitle.text = modelSubtitle(model, active, installed)
     }
 
-    private fun refreshAllCards() = MODEL_CATALOG.forEach { refreshCard(it) }
+    private fun refreshAllCards() {
+        MODEL_CATALOG.forEach { refreshCard(it) }
+        layoutModels()
+    }
 
     // =====================================================================
     //  SETTINGS
