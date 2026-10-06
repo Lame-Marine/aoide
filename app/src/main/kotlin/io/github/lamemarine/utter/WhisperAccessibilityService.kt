@@ -209,7 +209,7 @@ class WhisperAccessibilityService : AccessibilityService() {
     } catch (_: Exception) { "?" }
 
     private fun updateOverlayVisibility() {
-        val shouldShow = state != State.IDLE || textFieldActive()
+        val shouldShow = consented() && (state != State.IDLE || textFieldActive())
         if (shouldShow == overlayVisible) return
         Diag.add(this, "bubble ${if (shouldShow) "shown" else "hidden"} (${imeSummary()})")
         setOverlayVisible(shouldShow)
@@ -535,6 +535,7 @@ class WhisperAccessibilityService : AccessibilityService() {
     }
 
     private fun startRecording() {
+        if (!consented()) return
         if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
             != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             toast("Grant audio permission in Phone Whisper app"); return
@@ -596,6 +597,9 @@ class WhisperAccessibilityService : AccessibilityService() {
         }
     }
 
+    /** The user must have agreed to the in-app accessibility disclosure before the bubble does anything. */
+    private fun consented() = prefs().getBoolean("a11y_consent_v1", false)
+
     private fun triggerMode() = prefs().getString("trigger_mode", "both") ?: "both"
     private fun idleAlpha() = prefs().getInt("button_opacity", 85).coerceIn(20, 100) / 100f
     private fun targetAlpha() = if (state == State.IDLE) idleAlpha() else 1f
@@ -603,6 +607,7 @@ class WhisperAccessibilityService : AccessibilityService() {
     /** Called from the settings screen when opacity/mode change. */
     fun applySettings() {
         handler.post {
+            updateOverlayVisibility()
             overlayView?.let {
                 if (overlayVisible) { it.animate().cancel(); it.alpha = targetAlpha() }
             }
@@ -785,7 +790,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         val candidates = mutableListOf<AccessibilityNodeInfo>()
 
         rootInActiveWindow?.let { root ->
-            Log.i(TAG, "Active root: package=${root.packageName} class=${root.className}")
+            Log.i(TAG, "Active window root found")
             collectInjectionCandidates(root, candidates)
             root.recycle()
         }
@@ -794,10 +799,7 @@ class WhisperAccessibilityService : AccessibilityService() {
             ?.filter { it.isActive || it.isFocused }
             ?.forEach { window ->
                 val root = window.root ?: return@forEach
-                Log.i(
-                    TAG,
-                    "Window root: type=${window.type} active=${window.isActive} focused=${window.isFocused} package=${root.packageName} class=${root.className}"
-                )
+                Log.i(TAG, "Window root: type=${window.type} active=${window.isActive} focused=${window.isFocused}")
                 collectInjectionCandidates(root, candidates)
                 root.recycle()
             }
@@ -854,6 +856,10 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     private fun tryInjectIntoNode(node: AccessibilityNodeInfo, text: String): Boolean {
         logNode("Trying node", node)
+        if (node.isPassword) {
+            Log.i(TAG, "Skipping a password field")
+            return false
+        }
 
         node.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
 
@@ -897,10 +903,8 @@ class WhisperAccessibilityService : AccessibilityService() {
         val actions = node.actionList.joinToString { action ->
             action.label?.toString() ?: action.id.toString()
         }
-        Log.i(
-            TAG,
-            "$prefix package=${node.packageName} class=${node.className} focused=${node.isFocused} editable=${node.isEditable} text=${node.text} desc=${node.contentDescription} actions=[$actions]"
-        )
+        // Deliberately no text, description or package name: never log what is on someone's screen.
+        Log.i(TAG, "$prefix class=${node.className} focused=${node.isFocused} editable=${node.isEditable} actions=[$actions]")
     }
 
     private fun prefs() = getSharedPreferences("phonewhisper", MODE_PRIVATE)

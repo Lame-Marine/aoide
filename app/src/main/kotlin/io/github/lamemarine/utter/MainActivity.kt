@@ -113,6 +113,8 @@ class MainActivity : AppCompatActivity() {
             WindowInsetsCompat.CONSUMED
         }
         setContentView(container)
+        // Prominent disclosure + consent: shown in normal use on first launch, before anything else.
+        if (savedInstanceState == null && !consentGiven()) container.post { showDisclosure() }
         show(R.id.nav_home)
 
         if (!hasPerm(Manifest.permission.RECORD_AUDIO)) {
@@ -177,7 +179,7 @@ class MainActivity : AppCompatActivity() {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), 1)
         }
         checkAcc = checkRow("Accessibility service", "Lets the bubble type into other apps") {
-            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            if (!consentGiven()) showDisclosure() else startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
         checkModel = checkRow("Speech model", "Download one in the Models tab") { show(R.id.nav_models); }
         checkBatt = checkRow("Keep running in background", "Stops Android putting Utter to sleep") { requestBatteryExemption() }
@@ -497,6 +499,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(section("About", listOf(
             infoRow("Privacy", "Audio is processed on this phone and never uploaded. The only network use is downloading models when you ask."),
             infoRow("Version", packageManager.getPackageInfo(packageName, 0).versionName ?: ""),
+            consentRow(),
             settingsRow("Open-source licences", "Components Utter is built from, and their licences") {
                 startActivity(Intent(this, LicensesActivity::class.java))
             },
@@ -653,6 +656,72 @@ class MainActivity : AppCompatActivity() {
     }
 
     // =====================================================================
+    //  ACCESSIBILITY DISCLOSURE / CONSENT
+    // =====================================================================
+
+    private fun consentGiven() = prefs().getBoolean("a11y_consent_v1", false)
+
+    private val disclosureText = """Utter uses Android's Accessibility Service for two things only:
+
+• To notice when your keyboard is open, so it can show the dictation bubble next to it.
+• To type what you dictate into the text box you are using, at the cursor.
+
+To do this, the service can see which windows are on screen and the structure of the screen in front of you, to find the text box that has focus. When it inserts your words, it briefly reads that box's current text and cursor position so the words land in the right place.
+
+Utter does not collect, store, log or share what is on your screen or what you type. Your voice is processed on this phone and is never uploaded. The only time it goes online is when you choose to download a speech model.
+
+Utter never types into password fields.
+
+You can withdraw this at any time under Settings > About, and turn the service off in Android's Accessibility settings."""
+
+    private fun showDisclosure() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Allow Utter to use the Accessibility Service?")
+            .setMessage(disclosureText)
+            .setCancelable(false)
+            .setPositiveButton("Agree and continue") { _, _ ->
+                prefs().edit().putBoolean("a11y_consent_v1", true).putLong("a11y_consent_time", System.currentTimeMillis()).apply()
+                WhisperAccessibilityService.instance?.applySettings()
+                refresh()
+                if (WhisperAccessibilityService.instance == null) startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            }
+            .setNegativeButton("No thanks") { _, _ ->
+                toast("Utter can't type for you without it. You can review this on the Home tab.")
+                refresh()
+            }
+            .show()
+    }
+
+    private lateinit var consentSub: TextView
+
+    private fun consentSubtitle(): String {
+        if (!consentGiven()) return "Not agreed yet. Tap to read what it does"
+        val whenMs = prefs().getLong("a11y_consent_time", 0L)
+        val date = if (whenMs > 0) java.text.DateFormat.getDateInstance().format(java.util.Date(whenMs)) else ""
+        return "You agreed${if (date.isNotEmpty()) " on $date" else ""}. Tap to withdraw"
+    }
+
+    private fun consentRow(): LinearLayout {
+        val row = settingsRow("Accessibility consent", consentSubtitle()) {
+            if (!consentGiven()) { showDisclosure(); return@settingsRow }
+            MaterialAlertDialogBuilder(this)
+                .setTitle("Withdraw consent?")
+                .setMessage("The bubble will stop working. You can also switch the Utter service off in Android's Accessibility settings.")
+                .setPositiveButton("Withdraw") { _, _ ->
+                    prefs().edit().putBoolean("a11y_consent_v1", false).apply()
+                    WhisperAccessibilityService.instance?.applySettings()
+                    consentSub.text = consentSubtitle()
+                    refresh()
+                    startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                }
+                .setNegativeButton("Keep", null)
+                .show()
+        }
+        consentSub = row.findViewWithTag("subtitle")
+        return row
+    }
+
+    // =====================================================================
     //  STATE
     // =====================================================================
 
@@ -687,13 +756,14 @@ class MainActivity : AppCompatActivity() {
         }
 
         setCheck(checkMic, audio, "Granted", "Tap to grant")
-        setCheck(checkAcc, acc, "Enabled", "Tap to enable in Accessibility settings")
+        setCheck(checkAcc, acc && consentGiven(), "Enabled",
+            if (!consentGiven()) "Tap to read what it does, and agree" else "Tap to enable in Accessibility settings")
         val active = MODEL_CATALOG.firstOrNull { it.archive == cur }
         setCheck(checkModel, hasModel, active?.name ?: "Installed", "Tap to choose a model")
 
         val batt = isBatteryExempt()
         setCheck(checkBatt, batt, "Unrestricted", "Tap to allow")
-        val ready = audio && acc && hasModel && batt
+        val ready = audio && acc && consentGiven() && hasModel && batt
         heroTitle.text = if (ready) "Ready to dictate" else "Almost there"
         heroBody.text = if (ready) "Open any app, tap a text box, and use the bubble."
         else "Finish the steps below and you're set."
@@ -714,6 +784,7 @@ class MainActivity : AppCompatActivity() {
                 last.ts, System.currentTimeMillis(), android.text.format.DateUtils.MINUTE_IN_MILLIS)
         } else lastCard.visibility = View.GONE
 
+        if (::consentSub.isInitialized) consentSub.text = consentSubtitle()
         refreshAllCards()
     }
 
