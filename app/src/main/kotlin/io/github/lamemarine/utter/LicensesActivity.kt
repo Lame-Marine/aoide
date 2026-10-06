@@ -8,6 +8,8 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.button.MaterialButton
 
 /** Shows the bundled open-source licence texts (assets/licenses/). */
@@ -23,7 +25,7 @@ class LicensesActivity : AppCompatActivity() {
             text = if (isMain) "Open-source licences" else "ONNX Runtime third-party notices"
             textSize = 26f
             setTextColor(attr(android.R.attr.textColorPrimary))
-            setPadding(dp(20), dp(48), dp(20), dp(8))
+            setPadding(dp(20), dp(24), dp(20), dp(8))
         })
         if (isMain) {
             root.addView(MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
@@ -45,10 +47,16 @@ class LicensesActivity : AppCompatActivity() {
         }
         root.addView(tv)
 
-        setContentView(ScrollView(this).apply {
+        val scroll = ScrollView(this).apply {
             setBackgroundColor(attr(android.R.attr.colorBackground))
             addView(root)
-        })
+        }
+        ViewCompat.setOnApplyWindowInsetsListener(scroll) { v, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+            v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            WindowInsetsCompat.CONSUMED
+        }
+        setContentView(scroll)
 
         Thread {
             val text = try {

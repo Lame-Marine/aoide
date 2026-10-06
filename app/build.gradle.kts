@@ -5,14 +5,14 @@ plugins {
 
 android {
     namespace = "io.github.lamemarine.utter"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "io.github.lamemarine.utter"
         minSdk = 30
-        targetSdk = 34
-        versionCode = 3
-        versionName = "0.4.0"
+        targetSdk = 36
+        versionCode = 4
+        versionName = "0.5.0"
 
         ndk { abiFilters += "arm64-v8a" }
     }

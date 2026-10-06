@@ -25,7 +25,7 @@ class HistoryView(private val ctx: Context, private val onChanged: () -> Unit = 
         orientation = VERTICAL
         val header = LinearLayout(ctx).apply {
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(24), dp(48), dp(16), dp(4))
+            setPadding(dp(24), dp(24), dp(16), dp(4))
         }
         header.addView(TextView(ctx).apply {
             text = "History"

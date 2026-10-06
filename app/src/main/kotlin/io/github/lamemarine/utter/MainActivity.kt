@@ -23,6 +23,8 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
@@ -97,12 +99,20 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        setContentView(LinearLayout(this).apply {
+        val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(attrColor(android.R.attr.colorBackground))
             addView(frame)
             addView(nav, LinearLayout.LayoutParams(LP_MATCH, LP_WRAP))
-        })
+        }
+        // Edge-to-edge: keep content clear of the status bar / cutout; the bottom bar pads itself for the nav bar.
+        ViewCompat.setOnApplyWindowInsetsListener(container) { v, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+            v.setPadding(bars.left, bars.top, bars.right, 0)
+            nav.setPadding(nav.paddingLeft, nav.paddingTop, nav.paddingRight, bars.bottom)
+            WindowInsetsCompat.CONSUMED
+        }
+        setContentView(container)
         show(R.id.nav_home)
 
         if (!hasPerm(Manifest.permission.RECORD_AUDIO)) {
@@ -717,7 +727,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun pageTitle(title: String, subtitle: String?): LinearLayout = vertical(dp(24), 0).apply {
-        setPadding(dp(24), dp(48), dp(24), dp(8))
+        setPadding(dp(24), dp(24), dp(24), dp(8))
         addView(TextView(this@MainActivity).apply {
             text = title
             textSize = 32f
