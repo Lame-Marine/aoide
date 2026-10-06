@@ -71,6 +71,8 @@ class WhisperAccessibilityService : AccessibilityService() {
         }?.start()
     }
 
+    private val trimmer by lazy { SpeechTrimmer(this) }
+
     // Local transcription engine (loaded lazily)
     private var localTranscriber: LocalTranscriber? = null
 
@@ -510,10 +512,19 @@ class WhisperAccessibilityService : AccessibilityService() {
                     samples[i] = ((hi shl 8) or lo).toShort().toFloat() / 32768f
                 }
 
+                // Drop silence/noise first; no speech at all -> skip the model entirely
+                var speech = samples
+                if (prefs().getBoolean("trim_silence", true)) {
+                    val tv = System.currentTimeMillis()
+                    speech = trimmer.trim(samples)
+                    Log.i(TAG, "VAD: kept ${speech.size / 16}ms of ${samples.size / 16}ms in ${System.currentTimeMillis() - tv}ms")
+                    if (speech.isEmpty()) { handleTranscriptionResult(null); return@thread }
+                }
+
                 val t0 = System.currentTimeMillis()
-                val text = transcriber.transcribe(samples, SAMPLE_RATE)
+                val text = transcriber.transcribe(speech, SAMPLE_RATE)
                 val ms = System.currentTimeMillis() - t0
-                Log.i(TAG, "Local transcription: ${ms}ms, ${samples.size / SAMPLE_RATE}s audio")
+                Log.i(TAG, "Local transcription: ${ms}ms, ${speech.size / SAMPLE_RATE}s audio")
 
                 handleTranscriptionResult(text)
             } catch (e: Exception) {
@@ -528,7 +539,20 @@ class WhisperAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun handleTranscriptionResult(text: String?) {
+    private fun cleanerOptions(): TextCleaner.Options {
+        val p = prefs()
+        val fillers = if (p.getBoolean("clean_fillers", true))
+            TextCleaner.parseFillers(p.getString("filler_words", TextCleaner.DEFAULT_FILLERS) ?: TextCleaner.DEFAULT_FILLERS)
+        else emptyList()
+        return TextCleaner.Options(
+            fillers = fillers,
+            fixCaps = p.getBoolean("clean_caps", true),
+            spokenPunct = p.getBoolean("spoken_punct", false),
+        )
+    }
+
+    private fun handleTranscriptionResult(raw: String?) {
+        val text = raw?.let { TextCleaner.apply(it, cleanerOptions()) }
         handler.post {
             if (text.isNullOrBlank()) {
                 toast("No speech detected")

@@ -29,6 +29,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var accRowSub: TextView
     private lateinit var modeRowSub: TextView
     private lateinit var opacitySub: TextView
+    private lateinit var fillerSub: TextView
     private lateinit var modelContainer: LinearLayout
 
     private val modelRows = mutableMapOf<String, ModelRowViews>()
@@ -120,6 +121,16 @@ class MainActivity : AppCompatActivity() {
                 override fun onStopTrackingTouch(sb: SeekBar?) {}
             })
         })
+
+        // --- Audio & text Section ---
+        root.addView(sectionHeader("Audio & text"))
+        root.addView(toggleRow("Trim silence", "Skip silent parts; ignore clips with no speech", "trim_silence", true))
+        root.addView(toggleRow("Remove filler words", "Drops um, uh, er and similar", "clean_fillers", true))
+        val fillerRow = settingsRow("Filler word list", fillerList()) { editFillers() }
+        fillerSub = fillerRow.findViewWithTag("subtitle")
+        root.addView(fillerRow)
+        root.addView(toggleRow("Fix capitalisation", "Capital letters at sentence starts, and \"I\"", "clean_caps", true))
+        root.addView(toggleRow("Spoken punctuation", "Say \"comma\", \"period\", \"new line\" to insert them", "spoken_punct", false))
 
         setContentView(ScrollView(this).apply {
             setBackgroundColor(attrColor(android.R.attr.colorBackground))
@@ -296,6 +307,42 @@ class MainActivity : AppCompatActivity() {
         statusSubtitle.setTextColor(if (ready) attrColor(com.google.android.material.R.attr.colorPrimary) else attrColor(android.R.attr.textColorSecondary))
 
         refreshAllCards()
+    }
+
+    private fun toggleRow(title: String, subtitle: String, key: String, default: Boolean): LinearLayout {
+        val sw = MaterialSwitch(this).apply {
+            isChecked = prefs().getBoolean(key, default)
+            isClickable = false
+        }
+        return settingsRow(title, subtitle, sw) {
+            val v = !sw.isChecked
+            prefs().edit().putBoolean(key, v).apply()
+            sw.isChecked = v
+        }
+    }
+
+    private fun fillerList() = prefs().getString("filler_words", TextCleaner.DEFAULT_FILLERS) ?: TextCleaner.DEFAULT_FILLERS
+
+    private fun editFillers() {
+        val input = EditText(this).apply {
+            hint = "um, uh, er"
+            setText(fillerList())
+            setPadding(dp(24), dp(8), dp(24), dp(8))
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Filler words (comma separated)")
+            .setView(input)
+            .setPositiveButton("Save") { _, _ ->
+                val cleaned = TextCleaner.parseFillers(input.text.toString()).joinToString(", ")
+                prefs().edit().putString("filler_words", cleaned).apply()
+                fillerSub.text = cleaned.ifBlank { "(none)" }
+            }
+            .setNeutralButton("Reset") { _, _ ->
+                prefs().edit().putString("filler_words", TextCleaner.DEFAULT_FILLERS).apply()
+                fillerSub.text = TextCleaner.DEFAULT_FILLERS
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     // --- Button settings ---
