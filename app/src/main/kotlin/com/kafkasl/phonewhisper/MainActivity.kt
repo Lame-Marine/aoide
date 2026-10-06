@@ -443,9 +443,33 @@ class MainActivity : AppCompatActivity() {
         root.addView(section("About", listOf(
             infoRow("Privacy", "Audio is processed on this phone and never uploaded. The only network use is downloading models when you ask."),
             infoRow("Version", packageManager.getPackageInfo(packageName, 0).versionName ?: ""),
+            settingsRow("Diagnostics", "Recent service and microphone events, for troubleshooting") { showDiagnostics() },
         )))
         root.addView(spacer(24))
         return root
+    }
+
+    private fun showDiagnostics() {
+        val tv = TextView(this).apply {
+            text = Diag.read(this@MainActivity)
+            textSize = 11f
+            typeface = Typeface.MONOSPACE
+            setTextIsSelectable(true)
+            setPadding(dp(20), dp(8), dp(20), dp(8))
+        }
+        val sc = ScrollView(this).apply { addView(tv) }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Diagnostics")
+            .setView(sc)
+            .setPositiveButton("Copy") { _, _ ->
+                val cm = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+                cm.setPrimaryClip(ClipData.newPlainText("utter diagnostics", Diag.read(this, 200)))
+                toast("Copied")
+            }
+            .setNeutralButton("Clear") { _, _ -> Diag.clear(this) }
+            .setNegativeButton("Close", null)
+            .show()
+        sc.post { sc.fullScroll(View.FOCUS_DOWN) }
     }
 
     private fun opacityPct() = prefs().getInt("button_opacity", 85).coerceIn(20, 100)
