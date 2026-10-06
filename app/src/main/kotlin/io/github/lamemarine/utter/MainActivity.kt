@@ -114,7 +114,8 @@ class MainActivity : AppCompatActivity() {
         }
         setContentView(container)
         // Prominent disclosure + consent: shown in normal use on first launch, before anything else.
-        if (savedInstanceState == null && !consentGiven()) container.post { showDisclosure() }
+        // (also after rotation: dialogs are dismissed when the activity is recreated, so re-show until agreed or declined)
+        if (!consentGiven() && !declinedThisSession) container.post { showDisclosure() }
         show(R.id.nav_home)
 
         if (!hasPerm(Manifest.permission.RECORD_AUDIO)) {
@@ -686,6 +687,7 @@ You can withdraw this at any time under Settings > About, and turn the service o
                 if (WhisperAccessibilityService.instance == null) startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
             }
             .setNegativeButton("No thanks") { _, _ ->
+                declinedThisSession = true
                 toast("Utter can't type for you without it. You can review this on the Home tab.")
                 refresh()
             }
@@ -898,6 +900,7 @@ You can withdraw this at any time under Settings > About, and turn the service o
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
 
     companion object {
+        private var declinedThisSession = false
         private const val LP_MATCH = LinearLayout.LayoutParams.MATCH_PARENT
         private const val LP_WRAP = LinearLayout.LayoutParams.WRAP_CONTENT
     }

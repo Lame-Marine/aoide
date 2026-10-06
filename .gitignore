@@ -5,3 +5,6 @@ local.properties
 .env
 *.apk
 app/src/main/jniLibs/
+*.jks
+*.keystore
+keystore.properties
