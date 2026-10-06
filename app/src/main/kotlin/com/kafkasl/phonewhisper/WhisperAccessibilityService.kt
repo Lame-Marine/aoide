@@ -42,6 +42,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         private const val TAP_THRESHOLD_DP = 10
         private const val RING_DP = 56
         private const val FEEDBACK_OFFSET_DP = 64
+        private const val HOLD_MS = 300L
 
         private const val COLOR_IDLE = 0xDD1C1C1E.toInt()
         private const val COLOR_RECORDING = 0xDDEF4444.toInt()
@@ -123,7 +124,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         view.animate().cancel()
         if (visible) {
             view.visibility = View.VISIBLE
-            view.animate().alpha(1f).setDuration(150).start()
+            view.animate().alpha(targetAlpha()).setDuration(150).start()
         } else {
             view.animate().alpha(0f).setDuration(150).withEndAction {
                 if (!overlayVisible) view.visibility = View.GONE
@@ -211,29 +212,47 @@ class WhisperAccessibilityService : AccessibilityService() {
 
         var startX = 0; var startY = 0
         var touchX = 0f; var touchY = 0f
+        var downTime = 0L
+        var downState = State.IDLE
+        var startedOnDown = false
+        var dragging = false
 
         overlay.setOnTouchListener { v, ev ->
             when (ev.action) {
                 MotionEvent.ACTION_DOWN -> {
                     startX = params.x; startY = params.y
                     touchX = ev.rawX; touchY = ev.rawY
+                    downTime = System.currentTimeMillis()
+                    downState = state
+                    dragging = false
+                    startedOnDown = false
+                    // Hold / Both: start capturing immediately so no speech is lost
+                    if (state == State.IDLE && triggerMode() != "tap") {
+                        startRecording()
+                        startedOnDown = state == State.RECORDING
+                    }
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    params.x = startX + (ev.rawX - touchX).toInt()
-                    params.y = startY + (ev.rawY - touchY).toInt()
-                    wm.updateViewLayout(v, params)
-                    feedbackLayoutParams?.let {
-                        positionFeedback(it, params)
-                        wm.updateViewLayout(feedbackView, it)
+                    val moved = abs(ev.rawX - touchX) + abs(ev.rawY - touchY)
+                    if (!dragging && moved >= TAP_THRESHOLD_DP * dp) {
+                        dragging = true
+                        // Dragging the bubble is not dictation
+                        if (startedOnDown) { cancelRecording(); startedOnDown = false }
+                    }
+                    if (dragging) {
+                        params.x = startX + (ev.rawX - touchX).toInt()
+                        params.y = startY + (ev.rawY - touchY).toInt()
+                        wm.updateViewLayout(v, params)
+                        feedbackLayoutParams?.let {
+                            positionFeedback(it, params)
+                            wm.updateViewLayout(feedbackView, it)
+                        }
                     }
                     true
                 }
                 MotionEvent.ACTION_UP -> {
-                    val moved = abs(ev.rawX - touchX) + abs(ev.rawY - touchY)
-                    if (moved < TAP_THRESHOLD_DP * dp) {
-                        onTap()
-                    } else {
+                    if (dragging) {
                         params.x = if (params.x + ringSize / 2 > screenW / 2)
                             screenW - ringSize - margin else margin
                         wm.updateViewLayout(v, params)
@@ -241,7 +260,24 @@ class WhisperAccessibilityService : AccessibilityService() {
                             positionFeedback(it, params)
                             wm.updateViewLayout(feedbackView, it)
                         }
+                    } else {
+                        val held = System.currentTimeMillis() - downTime
+                        val mode = triggerMode()
+                        when {
+                            mode == "tap" -> onTap()
+                            startedOnDown && held >= HOLD_MS -> stopAndTranscribe()   // hold released
+                            startedOnDown && mode == "hold" -> {                        // too short for hold-only
+                                cancelRecording()
+                                showFeedback("Hold to talk")
+                            }
+                            startedOnDown -> { /* Both: quick tap -> keep recording until next tap */ }
+                            downState == State.RECORDING -> stopAndTranscribe()         // Both: tap to stop
+                        }
                     }
+                    true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    if (startedOnDown) { cancelRecording(); startedOnDown = false }
                     true
                 }
                 else -> false
@@ -315,6 +351,7 @@ class WhisperAccessibilityService : AccessibilityService() {
             button?.setImageResource(if (idle) R.drawable.ic_mic else android.R.color.transparent)
             waveform?.visibility = if (recording) View.VISIBLE else View.GONE
             if (!recording) waveform?.clear()
+            if (overlayVisible) overlayView?.animate()?.alpha(targetAlpha())?.setDuration(150)?.start()
             if (idle) updateOverlayVisibility() else Unit
         }
     }
@@ -415,6 +452,30 @@ class WhisperAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun triggerMode() = prefs().getString("trigger_mode", "both") ?: "both"
+    private fun idleAlpha() = prefs().getInt("button_opacity", 85).coerceIn(20, 100) / 100f
+    private fun targetAlpha() = if (state == State.IDLE) idleAlpha() else 1f
+
+    /** Called from the settings screen when opacity/mode change. */
+    fun applySettings() {
+        handler.post {
+            overlayView?.let {
+                if (overlayVisible) { it.animate().cancel(); it.alpha = targetAlpha() }
+            }
+        }
+    }
+
+    /** Abort a recording without transcribing (e.g. the user started dragging the bubble). */
+    private fun cancelRecording() {
+        if (state != State.RECORDING) return
+        state = State.IDLE
+        audioRecord?.let { try { it.stop() } catch (_: Exception) {}; it.release() }
+        audioRecord = null
+        pcmStream = null
+        setBusy(false)
+        setAppearance(COLOR_IDLE)
+    }
+
     private fun stopAndTranscribe() {
         state = State.TRANSCRIBING
         stopPulse()
@@ -430,13 +491,11 @@ class WhisperAccessibilityService : AccessibilityService() {
 
         if (pcm.isEmpty()) { reset("No audio captured"); return }
 
-        val useLocal = prefs().getBoolean("use_local", true)
         val local = localTranscriber
-
-        if (useLocal && local != null) {
+        if (local != null) {
             transcribeLocal(pcm, local)
         } else {
-            transcribeApi(pcm)
+            reset("No speech model loaded. Pick one in the Phone Whisper app")
         }
     }
 
@@ -469,72 +528,16 @@ class WhisperAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun transcribeApi(pcm: ByteArray) {
-        val wav = WavWriter.encode(pcm)
-        val apiKey = prefs().getString("api_key", "") ?: ""
-        if (apiKey.isBlank()) { reset("Set API key in Phone Whisper app"); return }
-
-        TranscriberClient.transcribe(wav, apiKey) { result ->
-            if (result.text != null && result.text.isNotBlank()) {
-                handleTranscriptionResult(result.text)
-            } else {
-                handler.post {
-                    toast("Error: ${result.error ?: "empty transcript"}")
-                    state = State.IDLE
-                    setBusy(false)
-                    setAppearance(COLOR_IDLE)
-                }
-            }
-        }
-    }
-
     private fun handleTranscriptionResult(text: String?) {
-        if (text.isNullOrBlank()) {
-            handler.post {
+        handler.post {
+            if (text.isNullOrBlank()) {
                 toast("No speech detected")
-                state = State.IDLE
-                setBusy(false)
-                setAppearance(COLOR_IDLE)
-            }
-            return
-        }
-
-        val usePostProcessing = prefs().getBoolean("use_post_processing", false)
-        val apiKey = prefs().getString("api_key", "") ?: ""
-
-        if (usePostProcessing) {
-            if (apiKey.isBlank()) {
-                handler.post {
-                    toast("Post-processing needs API key. Using raw text.")
-                    injectText(text)
-                    state = State.IDLE
-                    setBusy(false)
-                    setAppearance(COLOR_IDLE)
-                }
-                return
-            }
-
-            val prompt = prefs().getString("post_processing_prompt", PostProcessor.DEFAULT_PROMPT) ?: PostProcessor.DEFAULT_PROMPT
-            
-            PostProcessor.process(text, prompt, apiKey) { result ->
-                handler.post {
-                    if (result.text != null && result.text.isNotBlank()) {
-                        injectText(result.text)
-                    } else {
-                        injectText(text, feedback = "Cleanup failed — raw copied to clipboard", feedbackDurationMs = 3000)
-                    }
-                    state = State.IDLE
-                    setBusy(false)
-                    setAppearance(COLOR_IDLE)
-                }
-            }
-        } else {
-            handler.post {
+            } else {
                 injectText(text)
-                state = State.IDLE
-                setBusy(false)
-                setAppearance(COLOR_IDLE)
             }
+            state = State.IDLE
+            setBusy(false)
+            setAppearance(COLOR_IDLE)
         }
     }
 

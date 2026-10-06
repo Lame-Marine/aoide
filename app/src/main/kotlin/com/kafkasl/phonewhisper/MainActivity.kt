@@ -27,14 +27,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var statusSubtitle: TextView
     private lateinit var audioRowSub: TextView
     private lateinit var accRowSub: TextView
-    private lateinit var keyRowSub: TextView
-    private lateinit var promptRowSub: TextView
-    private lateinit var promptRow: LinearLayout
+    private lateinit var modeRowSub: TextView
+    private lateinit var opacitySub: TextView
     private lateinit var modelContainer: LinearLayout
-    private lateinit var promptContainer: LinearLayout
 
     private val modelRows = mutableMapOf<String, ModelRowViews>()
-    private val promptRows = mutableMapOf<String, PromptRowViews>()
 
     private data class ModelRowViews(
         val radio: MaterialRadioButton,
@@ -42,11 +39,6 @@ class MainActivity : AppCompatActivity() {
         val subtitle: TextView,
         val dlBtn: MaterialButton,
         val delBtn: MaterialButton
-    )
-
-    private data class PromptRowViews(
-        val radio: MaterialRadioButton,
-        val subtitle: TextView
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -84,22 +76,6 @@ class MainActivity : AppCompatActivity() {
         accRowSub = accRow.findViewWithTag("subtitle")
         root.addView(accRow)
 
-        // --- Engine Section ---
-        
-        val isCloud = !prefs().getBoolean("use_local", true)
-        
-        val cloudSwitch = MaterialSwitch(this).apply {
-            isChecked = isCloud
-            isClickable = false
-        }
-        val cloudRow = settingsRow("Use cloud transcription", "Requires OpenAI API key", cloudSwitch) {
-            val newCloud = !cloudSwitch.isChecked
-            prefs().edit().putBoolean("use_local", !newCloud).apply()
-            cloudSwitch.isChecked = newCloud
-            refresh()
-        }
-        root.addView(cloudRow)
-
         // Local Models section
         modelContainer = vertical(0)
         modelContainer.addView(sectionHeader("Local models"))
@@ -119,38 +95,31 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(modelContainer)
 
-        // --- Post-Processing Section ---
-        root.addView(sectionHeader("Post-Processing"))
-        
-        val isPostProcessing = prefs().getBoolean("use_post_processing", false)
-        val postProcessSwitch = MaterialSwitch(this).apply {
-            isChecked = isPostProcessing
-            isClickable = false
-        }
-        val postProcessRow = settingsRow("Cleanup transcript", "Uses OpenAI Chat API to fix grammar and punctuation", postProcessSwitch) {
-            val newVal = !postProcessSwitch.isChecked
-            prefs().edit().putBoolean("use_post_processing", newVal).apply()
-            postProcessSwitch.isChecked = newVal
-            refresh()
-        }
-        root.addView(postProcessRow)
+        // --- Button Section ---
+        root.addView(sectionHeader("Button"))
 
-        promptContainer = vertical(0)
-        for (preset in promptPresets()) promptContainer.addView(buildPromptRow(preset))
-        root.addView(promptContainer)
+        val modeRow = settingsRow("Trigger", modeLabel()) { chooseMode() }
+        modeRowSub = modeRow.findViewWithTag("subtitle")
+        root.addView(modeRow)
 
-        promptRow = settingsRow("Edit current prompt", currentPrompt()) { promptPostProcessing() }
-        promptRowSub = promptRow.findViewWithTag("subtitle")
-        promptRowSub.maxLines = 2
-        promptRowSub.ellipsize = android.text.TextUtils.TruncateAt.END
-        root.addView(promptRow)
-
-        // --- Settings Section ---
-        root.addView(sectionHeader("Settings"))
-        
-        val keyRow = settingsRow("OpenAI API Key", "Tap to set") { promptApiKey() }
-        keyRowSub = keyRow.findViewWithTag("subtitle")
-        root.addView(keyRow)
+        val opacityRow = settingsRow("Idle opacity", "${opacityPct()}%")
+        opacitySub = opacityRow.findViewWithTag("subtitle")
+        root.addView(opacityRow)
+        root.addView(SeekBar(this).apply {
+            max = 80
+            progress = opacityPct() - 20
+            setPadding(dp(24), 0, dp(24), dp(8))
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(sb: SeekBar?, value: Int, fromUser: Boolean) {
+                    val pct = value + 20
+                    prefs().edit().putInt("button_opacity", pct).apply()
+                    opacitySub.text = "$pct%"
+                    WhisperAccessibilityService.instance?.applySettings()
+                }
+                override fun onStartTrackingTouch(sb: SeekBar?) {}
+                override fun onStopTrackingTouch(sb: SeekBar?) {}
+            })
+        })
 
         setContentView(ScrollView(this).apply {
             setBackgroundColor(attrColor(android.R.attr.colorBackground))
@@ -304,69 +273,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun refreshAllCards() = MODEL_CATALOG.forEach { refreshCard(it) }
 
-    // --- Prompt Rows ---
-
-    private fun buildPromptRow(preset: PromptPreset): View {
-        val radio = MaterialRadioButton(this).apply {
-            isClickable = false
-            buttonTintList = ColorStateList.valueOf(attrColor(com.google.android.material.R.attr.colorPrimary))
-        }
-
-        val row = settingsRow(preset.title, preset.subtitle, radio) {
-            selectPrompt(preset.key)
-        }
-
-        promptRows[preset.key] = PromptRowViews(radio, row.findViewWithTag("subtitle"))
-        refreshPromptRow(preset)
-        return row
-    }
-
-    private fun selectPrompt(key: String) {
-        val prompt = when (key) {
-            "custom" -> customPrompt()
-            else -> promptPresets().firstOrNull { it.key == key }?.prompt
-        } ?: return
-        prefs().edit().putString("post_processing_prompt", prompt).apply()
-        refreshPromptRows(); refresh()
-    }
-
-    private fun refreshPromptRow(preset: PromptPreset) {
-        val views = promptRows[preset.key] ?: return
-        val current = currentPrompt()
-        val active = when (preset.key) {
-            "custom" -> current != PostProcessor.DEV_PROMPT && current != PostProcessor.SIMPLE_PROMPT
-            else -> current == preset.prompt
-        }
-        views.radio.isChecked = active
-        views.subtitle.text = if (preset.key == "custom") customPromptSummary() else preset.subtitle
-    }
-
-    private fun refreshPromptRows() = promptPresets().forEach { refreshPromptRow(it) }
-
     // --- State Updates ---
 
     private fun refresh() {
         val audio = hasPerm(Manifest.permission.RECORD_AUDIO)
         val acc = WhisperAccessibilityService.instance != null
-        val useLocal = prefs().getBoolean("use_local", true)
-        val usePostProcessing = prefs().getBoolean("use_post_processing", false)
-        val hasKey = !prefs().getString("api_key", "").isNullOrBlank()
         val hasModel = LocalTranscriber.availableModels(this).isNotEmpty()
 
         audioRowSub.text = if (audio) "Granted" else "Tap to grant permission"
         accRowSub.text = if (acc) "Enabled" else "Tap to enable in settings"
-
-        modelContainer.visibility = if (useLocal) View.VISIBLE else View.GONE
-        promptContainer.visibility = if (usePostProcessing) View.VISIBLE else View.GONE
-        promptRow.visibility = if (usePostProcessing) View.VISIBLE else View.GONE
-
-        val apiKey = prefs().getString("api_key", "") ?: ""
-        keyRowSub.text = if (apiKey.isBlank()) "Tap to set" 
-                         else if (apiKey.length > 7) "sk-...${apiKey.takeLast(4)}" 
-                         else "sk-...***"
-
-        val prompt = currentPrompt()
-        promptRowSub.text = prompt
 
         val cur = prefs().getString("model_name", "") ?: ""
         if (cur.isBlank() || !File(filesDir, "models/$cur").exists()) {
@@ -374,54 +289,36 @@ class MainActivity : AppCompatActivity() {
                 ?.let { selectModel(it.archive) }
         }
 
-        // Ready logic
-        val localReady = useLocal && hasModel
-        val cloudReady = !useLocal && hasKey
-        val postReady = !usePostProcessing || hasKey
-        val ready = audio && acc && (localReady || cloudReady) && postReady
-
-        statusSubtitle.text = if (ready) "Ready — tap the overlay dot to dictate" else "Setup required"
+        val ready = audio && acc && hasModel
+        statusSubtitle.text = if (ready) "Ready. Open a keyboard and use the bubble"
+                              else if (!hasModel) "Download a speech model below"
+                              else "Setup required"
         statusSubtitle.setTextColor(if (ready) attrColor(com.google.android.material.R.attr.colorPrimary) else attrColor(android.R.attr.textColorSecondary))
-        
+
         refreshAllCards()
-        refreshPromptRows()
     }
 
-    private fun promptApiKey() {
-        val input = EditText(this).apply {
-            hint = "sk-..."
-            setText(prefs().getString("api_key", ""))
-        }
-        android.app.AlertDialog.Builder(this)
-            .setTitle("OpenAI API Key")
-            .setView(input.apply { setPadding(dp(24), dp(8), dp(24), dp(8)) })
-            .setPositiveButton("Save") { _, _ ->
-                prefs().edit().putString("api_key", input.text.toString().trim()).apply()
-                refresh()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
+    // --- Button settings ---
+
+    private fun opacityPct() = prefs().getInt("button_opacity", 85).coerceIn(20, 100)
+
+    private fun modeLabel() = when (prefs().getString("trigger_mode", "both")) {
+        "tap" -> "Tap to start, tap to stop"
+        "hold" -> "Hold to talk, release to finish"
+        else -> "Tap to toggle, or hold to talk"
     }
 
-    private fun promptPostProcessing() {
-        val input = EditText(this).apply {
-            hint = "Prompt"
-            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
-            minLines = 3
-            gravity = Gravity.TOP or Gravity.START
-            setText(currentPrompt())
-        }
+    private fun chooseMode() {
+        val keys = arrayOf("tap", "hold", "both")
+        val labels = arrayOf("Tap (tap to start, tap to stop)", "Hold (hold to talk, release to finish)", "Both (tap or hold)")
+        val current = keys.indexOf(prefs().getString("trigger_mode", "both")).coerceAtLeast(0)
         android.app.AlertDialog.Builder(this)
-            .setTitle("Edit current prompt")
-            .setView(input.apply { setPadding(dp(24), dp(8), dp(24), dp(8)) })
-            .setPositiveButton("Save") { _, _ ->
-                val text = input.text.toString().trim()
-                val finalPrompt = if (text.isBlank()) PostProcessor.DEFAULT_PROMPT else text
-                prefs().edit()
-                    .putString("custom_post_processing_prompt", finalPrompt)
-                    .putString("post_processing_prompt", finalPrompt)
-                    .apply()
-                refresh()
+            .setTitle("Button trigger")
+            .setSingleChoiceItems(labels, current) { dialog, which ->
+                prefs().edit().putString("trigger_mode", keys[which]).apply()
+                modeRowSub.text = modeLabel()
+                WhisperAccessibilityService.instance?.applySettings()
+                dialog.dismiss()
             }
             .setNegativeButton("Cancel", null)
             .show()
@@ -480,38 +377,6 @@ class MainActivity : AppCompatActivity() {
         orientation = LinearLayout.VERTICAL
         setPadding(padH, padV, padH, padV)
     }
-
-    private fun currentPrompt() = prefs().getString("post_processing_prompt", PostProcessor.DEFAULT_PROMPT) ?: PostProcessor.DEFAULT_PROMPT
-    private fun customPrompt() = prefs().getString("custom_post_processing_prompt", PostProcessor.DEFAULT_PROMPT) ?: PostProcessor.DEFAULT_PROMPT
-
-    private fun customPromptSummary(): String {
-        val prompt = customPrompt()
-        return if (prompt == PostProcessor.DEFAULT_PROMPT) "Your edited prompt"
-        else prompt.replace("\n", " ")
-    }
-
-    private data class PromptPreset(val key: String, val title: String, val subtitle: String, val prompt: String)
-
-    private fun promptPresets() = listOf(
-        PromptPreset(
-            key = "dev",
-            title = "Dev cleanup",
-            subtitle = "Best for coding, CLI, and project names",
-            prompt = PostProcessor.DEV_PROMPT
-        ),
-        PromptPreset(
-            key = "simple",
-            title = "Simple cleanup",
-            subtitle = "Grammar, punctuation, and light cleanup",
-            prompt = PostProcessor.SIMPLE_PROMPT
-        ),
-        PromptPreset(
-            key = "custom",
-            title = "Custom",
-            subtitle = customPromptSummary(),
-            prompt = customPrompt()
-        )
-    )
 
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
     private fun hasPerm(p: String) = ContextCompat.checkSelfPermission(this, p) == PackageManager.PERMISSION_GRANTED
