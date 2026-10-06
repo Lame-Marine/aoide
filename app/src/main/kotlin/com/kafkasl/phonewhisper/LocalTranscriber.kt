@@ -131,15 +131,19 @@ class LocalTranscriber private constructor(private val recognizer: OfflineRecogn
             return null
         }
 
-        /** Find first file matching prefix (prefer int8 quantized). */
+        /**
+         * Find first model file for a role (prefer int8 quantized). Matches both
+         * "encoder.int8.onnx" (Parakeet) and "base.en-encoder.int8.onnx" (Whisper).
+         */
         private fun findFile(dir: String, prefix: String): String? {
             val d = File(dir)
+            fun matches(n: String) = n.startsWith(prefix) || n.contains("-$prefix")
             // Prefer int8 quantized
-            d.listFiles()?.firstOrNull { it.name.startsWith(prefix) && it.name.contains("int8") }
+            d.listFiles()?.firstOrNull { matches(it.name) && it.name.contains("int8") && !it.name.endsWith("tokens.txt") }
                 ?.let { return it.absolutePath }
             // Fallback to any onnx/ort
             return d.listFiles()?.firstOrNull {
-                it.name.startsWith(prefix) && (it.name.endsWith(".onnx") || it.name.endsWith(".ort"))
+                matches(it.name) && (it.name.endsWith(".onnx") || it.name.endsWith(".ort"))
             }?.absolutePath
         }
     }

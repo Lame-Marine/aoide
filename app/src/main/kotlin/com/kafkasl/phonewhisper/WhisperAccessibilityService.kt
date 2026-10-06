@@ -140,16 +140,20 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     private fun initLocalModel() {
         val modelName = prefs().getString("model_name", "") ?: ""
-        if (modelName.isBlank()) {
+        val previous = localTranscriber
+        val loaded = if (modelName.isBlank()) {
             // Auto-detect first available model
             val models = LocalTranscriber.availableModels(this)
             if (models.isNotEmpty()) {
                 Log.i(TAG, "Auto-detected model: ${models.first()}")
-                localTranscriber = LocalTranscriber.create(this, models.first())
-            }
+                LocalTranscriber.create(this, models.first())
+            } else null
         } else {
-            localTranscriber = LocalTranscriber.create(this, modelName)
+            LocalTranscriber.create(this, modelName)
         }
+        // Never replace a working engine with a failed load
+        if (loaded != null) localTranscriber = loaded
+        else if (previous != null) Log.w(TAG, "Model load failed; keeping previous engine")
         if (localTranscriber != null) {
             Log.i(TAG, "Local transcription ready")
         } else {
