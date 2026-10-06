@@ -33,7 +33,7 @@ class HistoryStore(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, "his
     }
 
     @Synchronized
-    fun list(limit: Int = MAX_ITEMS): List<Entry> {
+    fun list(limit: Int = HARD_CAP): List<Entry> {
         val out = ArrayList<Entry>()
         readableDatabase.rawQuery(
             "SELECT id, ts, text, model, audio_ms, proc_ms FROM history ORDER BY ts DESC, id DESC LIMIT ?",
@@ -54,21 +54,17 @@ class HistoryStore(ctx: Context) : SQLiteOpenHelper(ctx.applicationContext, "his
 
     @Synchronized fun clear() { writableDatabase.delete("history", null, null) }
 
-    /** Drop entries older than [retentionDays] (0 = keep forever) and cap the total at [MAX_ITEMS]. */
+    /** Keep only the newest [maxItems] entries. */
     @Synchronized
-    fun prune(retentionDays: Int) {
-        val db = writableDatabase
-        if (retentionDays > 0) {
-            val cutoff = System.currentTimeMillis() - retentionDays * 24L * 3600L * 1000L
-            db.delete("history", "ts < ?", arrayOf(cutoff.toString()))
-        }
-        db.execSQL(
-            "DELETE FROM history WHERE id NOT IN (SELECT id FROM history ORDER BY ts DESC, id DESC LIMIT $MAX_ITEMS)"
+    fun prune(maxItems: Int) {
+        val keep = maxItems.coerceIn(1, HARD_CAP)
+        writableDatabase.execSQL(
+            "DELETE FROM history WHERE id NOT IN (SELECT id FROM history ORDER BY ts DESC, id DESC LIMIT $keep)"
         )
     }
 
     companion object {
-        const val MAX_ITEMS = 500
-        const val DEFAULT_RETENTION_DAYS = 30
+        const val HARD_CAP = 500
+        const val DEFAULT_MAX_ITEMS = 100
     }
 }

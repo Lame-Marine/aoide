@@ -558,11 +558,11 @@ class WhisperAccessibilityService : AccessibilityService() {
         val p = prefs()
         if (!p.getBoolean("history_enabled", true)) return
         val model = p.getString("model_name", "") ?: ""
-        val days = p.getInt("history_retention_days", HistoryStore.DEFAULT_RETENTION_DAYS)
+        val maxItems = p.getInt("history_max_items", HistoryStore.DEFAULT_MAX_ITEMS)
         thread {
             try {
                 history.add(text, model, audioMs, procMs)
-                history.prune(days)
+                history.prune(maxItems)
             } catch (e: Exception) {
                 Log.w(TAG, "History write failed: ${e.message}")
             }
