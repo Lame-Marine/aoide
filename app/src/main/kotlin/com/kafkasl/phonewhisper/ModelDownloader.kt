@@ -43,8 +43,12 @@ object ModelDownloader {
     fun modelDir(ctx: Context, model: Model) =
         File(ctx.filesDir, "models/${model.archive}")
 
+    /** Installed only if extraction finished: a tokens file must be present. */
     fun isInstalled(ctx: Context, model: Model) =
-        modelDir(ctx, model).exists()
+        modelDir(ctx, model).let { d -> d.isDirectory && hasTokens(d) }
+
+    fun hasTokens(dir: File) =
+        dir.listFiles()?.any { it.name == "tokens.txt" || it.name.endsWith("-tokens.txt") } == true
 
     /** Download and extract model. Callbacks fire on background thread. */
     fun download(ctx: Context, model: Model, onState: (DownloadState) -> Unit) {
@@ -56,7 +60,21 @@ object ModelDownloader {
             try {
                 downloadFile(url, tmpFile, onState)
                 onState(DownloadState.Extracting)
-                extractTarBz2(tmpFile, outDir)
+                // Extract to a scratch dir, then move into place, so an interrupted
+                // extraction never leaves a half-installed model behind.
+                val scratch = File(ctx.cacheDir, "extract-${model.archive}")
+                scratch.deleteRecursively()
+                extractTarBz2(tmpFile, scratch)
+                outDir.mkdirs()
+                scratch.listFiles()?.forEach { child ->
+                    val target = File(outDir, child.name)
+                    target.deleteRecursively()
+                    if (!child.renameTo(target)) {
+                        child.copyRecursively(target, overwrite = true)
+                        child.deleteRecursively()
+                    }
+                }
+                scratch.deleteRecursively()
                 onState(DownloadState.Done)
             } catch (e: Exception) {
                 onState(DownloadState.Error(e.message ?: "Unknown error"))

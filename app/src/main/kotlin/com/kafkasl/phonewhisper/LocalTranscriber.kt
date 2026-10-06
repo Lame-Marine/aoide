@@ -28,7 +28,9 @@ class LocalTranscriber private constructor(private val recognizer: OfflineRecogn
         fun availableModels(ctx: Context): List<String> {
             val modelsDir = File(ctx.filesDir, "models")
             if (!modelsDir.exists()) return emptyList()
-            return modelsDir.listFiles()?.filter { it.isDirectory }?.map { it.name } ?: emptyList()
+            return modelsDir.listFiles()
+                ?.filter { it.isDirectory && ModelDownloader.hasTokens(it) }
+                ?.map { it.name } ?: emptyList()
         }
 
         /** Create a LocalTranscriber for the given model directory name. Returns null on failure. */
@@ -57,8 +59,10 @@ class LocalTranscriber private constructor(private val recognizer: OfflineRecogn
         /** Auto-detect model type from files present in the directory. */
         private fun detectModelConfig(dir: File): OfflineRecognizerConfig? {
             val p = dir.absolutePath
-            val tokens = "$p/tokens.txt"
-            if (!File(tokens).exists()) return null
+            // Whisper ships "<name>-tokens.txt"; others ship "tokens.txt"
+            val tokens = dir.listFiles()
+                ?.firstOrNull { it.name == "tokens.txt" || it.name.endsWith("-tokens.txt") }
+                ?.absolutePath ?: return null
 
             // Moonshine (has preprocess.onnx)
             if (File("$p/preprocess.onnx").exists()) {
