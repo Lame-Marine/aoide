@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.kafkasl.phonewhisper"
+    namespace = "io.github.lamemarine.utter"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.kafkasl.phonewhisper"
+        applicationId = "io.github.lamemarine.utter"
         minSdk = 30
         targetSdk = 34
         versionCode = 3

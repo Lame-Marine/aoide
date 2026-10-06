@@ -1,4 +1,4 @@
-package com.kafkasl.phonewhisper
+package io.github.lamemarine.utter
 
 import android.content.Context
 import android.os.Build

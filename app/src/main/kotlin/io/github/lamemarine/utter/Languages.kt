@@ -1,4 +1,4 @@
-package com.kafkasl.phonewhisper
+package io.github.lamemarine.utter
 
 /** Whisper language codes -> display names. "auto" lets the model detect the language. */
 val LANGUAGES: List<Pair<String, String>> = listOf(

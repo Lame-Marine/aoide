@@ -1,4 +1,4 @@
-package com.kafkasl.phonewhisper
+package io.github.lamemarine.utter
 
 import android.accessibilityservice.AccessibilityService
 import android.content.ClipData

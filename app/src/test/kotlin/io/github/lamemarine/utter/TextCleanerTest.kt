@@ -1,4 +1,4 @@
-package com.kafkasl.phonewhisper
+package io.github.lamemarine.utter
 
 import org.junit.Assert.assertEquals
 import org.junit.Test

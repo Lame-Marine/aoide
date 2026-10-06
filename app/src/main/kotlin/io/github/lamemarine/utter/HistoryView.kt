@@ -1,4 +1,4 @@
-package com.kafkasl.phonewhisper
+package io.github.lamemarine.utter
 
 import android.content.ClipData
 import android.content.ClipboardManager

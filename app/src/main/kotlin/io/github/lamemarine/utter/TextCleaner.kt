@@ -1,4 +1,4 @@
-package com.kafkasl.phonewhisper
+package io.github.lamemarine.utter
 
 /**
  * Local, rule-based text tidy-up for dictation output. No network, no model.
