@@ -34,14 +34,14 @@ class LocalTranscriber private constructor(private val recognizer: OfflineRecogn
         }
 
         /** Create a LocalTranscriber for the given model directory name. Returns null on failure. */
-        fun create(ctx: Context, modelName: String): LocalTranscriber? {
+        fun create(ctx: Context, modelName: String, language: String = ""): LocalTranscriber? {
             val modelDir = File(ctx.filesDir, "models/$modelName")
             if (!modelDir.exists()) {
                 Log.e(TAG, "Model dir not found: $modelDir")
                 return null
             }
 
-            val config = detectModelConfig(modelDir) ?: run {
+            val config = detectModelConfig(modelDir, language) ?: run {
                 Log.e(TAG, "Could not detect model type in $modelDir")
                 return null
             }
@@ -57,7 +57,7 @@ class LocalTranscriber private constructor(private val recognizer: OfflineRecogn
         }
 
         /** Auto-detect model type from files present in the directory. */
-        private fun detectModelConfig(dir: File): OfflineRecognizerConfig? {
+        private fun detectModelConfig(dir: File, language: String): OfflineRecognizerConfig? {
             val p = dir.absolutePath
             // Whisper ships "<name>-tokens.txt"; others ship "tokens.txt"
             val tokens = dir.listFiles()
@@ -89,6 +89,8 @@ class LocalTranscriber private constructor(private val recognizer: OfflineRecogn
                         whisper = OfflineWhisperModelConfig(
                             encoder = whisperEncoder,
                             decoder = whisperDecoder,
+                            // English-only models ("*.en") must stay "en"; multilingual: "" = auto-detect
+                            language = if (dir.name.endsWith(".en")) "en" else language,
                         ),
                         tokens = tokens,
                         numThreads = 2,

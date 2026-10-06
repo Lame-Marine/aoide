@@ -30,6 +30,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var modeRowSub: TextView
     private lateinit var opacitySub: TextView
     private lateinit var fillerSub: TextView
+    private lateinit var languageSub: TextView
+    private lateinit var retentionSub: TextView
     private lateinit var modelContainer: LinearLayout
 
     private val modelRows = mutableMapOf<String, ModelRowViews>()
@@ -124,6 +126,9 @@ class MainActivity : AppCompatActivity() {
 
         // --- Audio & text Section ---
         root.addView(sectionHeader("Audio & text"))
+        val langRow = settingsRow("Language", languageText()) { chooseLanguage() }
+        languageSub = langRow.findViewWithTag("subtitle")
+        root.addView(langRow)
         root.addView(toggleRow("Trim silence", "Skip silent parts; ignore clips with no speech", "trim_silence", true))
         root.addView(toggleRow("Remove filler words", "Drops um, uh, er and similar", "clean_fillers", true))
         val fillerRow = settingsRow("Filler word list", fillerList()) { editFillers() }
@@ -131,6 +136,17 @@ class MainActivity : AppCompatActivity() {
         root.addView(fillerRow)
         root.addView(toggleRow("Fix capitalisation", "Capital letters at sentence starts, and \"I\"", "clean_caps", true))
         root.addView(toggleRow("Spoken punctuation", "Say \"comma\", \"period\", \"new line\" to insert them", "spoken_punct", false))
+
+        // --- History Section ---
+        root.addView(sectionHeader("History"))
+        root.addView(toggleRow("Save history", "Keep a private list of past dictations on this phone", "history_enabled", true))
+        val retRow = settingsRow("Keep for", retentionText()) { chooseRetention() }
+        retentionSub = retRow.findViewWithTag("subtitle")
+        root.addView(retRow)
+        root.addView(settingsRow("View history", "Tap an entry to copy it") {
+            startActivity(Intent(this, HistoryActivity::class.java))
+        })
+        root.addView(settingsRow("Clear history", "Delete every saved dictation") { confirmClearHistory() })
 
         setContentView(ScrollView(this).apply {
             setBackgroundColor(attrColor(android.R.attr.colorBackground))
@@ -307,6 +323,55 @@ class MainActivity : AppCompatActivity() {
         statusSubtitle.setTextColor(if (ready) attrColor(com.google.android.material.R.attr.colorPrimary) else attrColor(android.R.attr.textColorSecondary))
 
         refreshAllCards()
+    }
+
+    private fun languageText() = languageName(prefs().getString("language", "auto") ?: "auto") +
+        " · Whisper multilingual models only"
+
+    private fun chooseLanguage() {
+        val current = LANGUAGES.indexOfFirst { it.first == (prefs().getString("language", "auto") ?: "auto") }.coerceAtLeast(0)
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Language")
+            .setSingleChoiceItems(LANGUAGES.map { it.second }.toTypedArray(), current) { dialog, which ->
+                prefs().edit().putString("language", LANGUAGES[which].first).apply()
+                languageSub.text = languageText()
+                WhisperAccessibilityService.instance?.reloadModel()
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private val retentionOptions = listOf(1 to "1 day", 7 to "7 days", 30 to "30 days", 0 to "Until I clear it")
+
+    private fun retentionText() = retentionOptions
+        .firstOrNull { it.first == prefs().getInt("history_retention_days", HistoryStore.DEFAULT_RETENTION_DAYS) }?.second ?: "30 days"
+
+    private fun chooseRetention() {
+        val cur = prefs().getInt("history_retention_days", HistoryStore.DEFAULT_RETENTION_DAYS)
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Keep history for")
+            .setSingleChoiceItems(retentionOptions.map { it.second }.toTypedArray(),
+                retentionOptions.indexOfFirst { it.first == cur }.coerceAtLeast(0)) { dialog, which ->
+                prefs().edit().putInt("history_retention_days", retentionOptions[which].first).apply()
+                retentionSub.text = retentionText()
+                Thread { HistoryStore(this).prune(retentionOptions[which].first) }.start()
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun confirmClearHistory() {
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Clear all history?")
+            .setMessage("This deletes every saved dictation. It cannot be undone.")
+            .setPositiveButton("Clear") { _, _ ->
+                Thread { HistoryStore(this).clear() }.start()
+                toast("History cleared")
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun toggleRow(title: String, subtitle: String, key: String, default: Boolean): LinearLayout {

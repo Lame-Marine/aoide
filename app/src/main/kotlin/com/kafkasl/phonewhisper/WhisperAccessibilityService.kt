@@ -144,15 +144,16 @@ class WhisperAccessibilityService : AccessibilityService() {
     private fun initLocalModel() {
         val modelName = prefs().getString("model_name", "") ?: ""
         val previous = localTranscriber
+        val lang = prefs().getString("language", "auto").let { if (it == null || it == "auto") "" else it }
         val loaded = if (modelName.isBlank()) {
             // Auto-detect first available model
             val models = LocalTranscriber.availableModels(this)
             if (models.isNotEmpty()) {
                 Log.i(TAG, "Auto-detected model: ${models.first()}")
-                LocalTranscriber.create(this, models.first())
+                LocalTranscriber.create(this, models.first(), lang)
             } else null
         } else {
-            LocalTranscriber.create(this, modelName)
+            LocalTranscriber.create(this, modelName, lang)
         }
         // Never replace a working engine with a failed load
         if (loaded != null) localTranscriber = loaded
@@ -526,7 +527,7 @@ class WhisperAccessibilityService : AccessibilityService() {
                 val ms = System.currentTimeMillis() - t0
                 Log.i(TAG, "Local transcription: ${ms}ms, ${speech.size / SAMPLE_RATE}s audio")
 
-                handleTranscriptionResult(text)
+                handleTranscriptionResult(text, speech.size / 16, ms.toInt())
             } catch (e: Exception) {
                 Log.e(TAG, "Local transcription failed", e)
                 handler.post {
@@ -551,8 +552,26 @@ class WhisperAccessibilityService : AccessibilityService() {
         )
     }
 
-    private fun handleTranscriptionResult(raw: String?) {
+    private val history by lazy { HistoryStore(this) }
+
+    private fun saveToHistory(text: String, audioMs: Int, procMs: Int) {
+        val p = prefs()
+        if (!p.getBoolean("history_enabled", true)) return
+        val model = p.getString("model_name", "") ?: ""
+        val days = p.getInt("history_retention_days", HistoryStore.DEFAULT_RETENTION_DAYS)
+        thread {
+            try {
+                history.add(text, model, audioMs, procMs)
+                history.prune(days)
+            } catch (e: Exception) {
+                Log.w(TAG, "History write failed: ${e.message}")
+            }
+        }
+    }
+
+    private fun handleTranscriptionResult(raw: String?, audioMs: Int = 0, procMs: Int = 0) {
         val text = raw?.let { TextCleaner.apply(it, cleanerOptions()) }
+        if (!text.isNullOrBlank()) saveToHistory(text, audioMs, procMs)
         handler.post {
             if (text.isNullOrBlank()) {
                 toast("No speech detected")
