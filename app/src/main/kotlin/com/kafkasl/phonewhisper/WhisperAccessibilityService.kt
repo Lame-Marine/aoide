@@ -135,6 +135,7 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         instance = this
+        if (!Diag.isEnabled(this)) Diag.clear(this)   // wipe any stale log while debug mode is off
         Diag.add(this, "service connected (pid ${android.os.Process.myPid()}, uptime ${android.os.SystemClock.elapsedRealtime() / 1000}s)")
         showOverlay()
         setOverlayVisible(false)

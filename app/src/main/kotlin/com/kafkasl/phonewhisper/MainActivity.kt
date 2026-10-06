@@ -443,15 +443,41 @@ class MainActivity : AppCompatActivity() {
         root.addView(section("About", listOf(
             infoRow("Privacy", "Audio is processed on this phone and never uploaded. The only network use is downloading models when you ask."),
             infoRow("Version", packageManager.getPackageInfo(packageName, 0).versionName ?: ""),
-            settingsRow("Diagnostics", "Recent service and microphone events, for troubleshooting") { showDiagnostics() },
+            debugToggleRow(),
+            settingsRow("Debug report", "Device info and recorded events, to copy and share") { showDiagnostics() },
         )))
         root.addView(spacer(24))
         return root
     }
 
+    private lateinit var debugSub: TextView
+
+    private fun debugSubtitle(): String {
+        if (!Diag.isEnabled(this)) return "Off. Turn on to record service and microphone events (never audio or your words)"
+        val left = ((Diag.expiresAt(this) - System.currentTimeMillis()) / 3_600_000L).coerceAtLeast(0)
+        return "On. Records events only, switches itself off in about ${left}h"
+    }
+
+    private fun debugToggleRow(): LinearLayout {
+        val sw = MaterialSwitch(this).apply {
+            isChecked = Diag.isEnabled(this@MainActivity)
+            isClickable = false
+        }
+        val row = settingsRow("Debug mode", debugSubtitle(), sw) {
+            val on = !sw.isChecked
+            if (on) Diag.enable(this) else Diag.disable(this)
+            sw.isChecked = on
+            debugSub.text = debugSubtitle()
+        }
+        debugSub = row.findViewWithTag("subtitle")
+        return row
+    }
+
     private fun showDiagnostics() {
+        val on = Diag.isEnabled(this)
         val tv = TextView(this).apply {
-            text = Diag.read(this@MainActivity)
+            text = (if (on) "" else "Debug mode is off, so no events are being recorded. Turn it on, reproduce the problem, then come back here.\n\n") +
+                Diag.deviceReport(this@MainActivity) + "\n\n--- events ---\n" + Diag.readLog(this@MainActivity)
             textSize = 11f
             typeface = Typeface.MONOSPACE
             setTextIsSelectable(true)
@@ -459,14 +485,14 @@ class MainActivity : AppCompatActivity() {
         }
         val sc = ScrollView(this).apply { addView(tv) }
         MaterialAlertDialogBuilder(this)
-            .setTitle("Diagnostics")
+            .setTitle("Debug report")
             .setView(sc)
             .setPositiveButton("Copy") { _, _ ->
                 val cm = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
-                cm.setPrimaryClip(ClipData.newPlainText("utter diagnostics", Diag.read(this, 200)))
+                cm.setPrimaryClip(ClipData.newPlainText("utter debug report", Diag.fullReport(this)))
                 toast("Copied")
             }
-            .setNeutralButton("Clear") { _, _ -> Diag.clear(this) }
+            .setNeutralButton("Clear events") { _, _ -> Diag.clear(this) }
             .setNegativeButton("Close", null)
             .show()
         sc.post { sc.fullScroll(View.FOCUS_DOWN) }
