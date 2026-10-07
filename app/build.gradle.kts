@@ -20,7 +20,7 @@ android {
         applicationId = "io.github.lamemarine.aoide"
         minSdk = 30
         targetSdk = 36
-        versionCode = 8
+        versionCode = 9
         versionName = "0.5.4"
 
         ndk { abiFilters += "arm64-v8a" }
