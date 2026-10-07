@@ -27,12 +27,27 @@ service instead of replacing your keyboard.
 1. On your phone, open the [latest release](https://github.com/Lame-Marine/aoide/releases/latest) and download
    `Aoide-<version>.apk`.
 2. Open the downloaded file. If Android asks, allow your browser or files app to install apps from this source.
-3. Open Aoide and grant the microphone permission. Read and accept the accessibility disclosure.
-4. Turn on the Aoide accessibility service (Settings > Accessibility > Installed apps).
-   On Android 13+ you may first need **App info > ⋮ > Allow restricted settings** for Aoide.
+   If it is blocked, see **If the install is blocked** below.
+3. Open Aoide, grant the microphone permission, and read and accept the accessibility disclosure.
+4. Turn on the Aoide accessibility service (Settings > Accessibility > Installed apps > Aoide).
+   If the toggle is greyed out or says the setting is restricted, go to **Settings > Apps > Aoide**, tap **⋮**
+   (top right) and choose **Allow restricted settings**, then try the toggle again. Android does this for any app
+   installed from outside a store.
 5. Open the **Models** tab and download a model. Whisper Base (English) or Parakeet 110M are good starting points.
 6. Set Aoide to **Unrestricted** under battery settings so Android does not stop the service.
    Samsung phones also have *Battery > Background usage limits > Never sleeping apps*.
+
+### If the install is blocked
+
+Google Play Protect blocks apps installed from a browser or file manager when they use the accessibility
+permission, which Aoide needs in order to type into other apps. The message reads *"This app can request access to
+sensitive data..."*. It is a blanket rule, not a finding that the app is harmful.
+
+- Pause scanning while you install: open Play Protect (in the Play Store: profile icon > Play Protect > ⚙),
+  turn off **Scan apps with Play Protect**, install Aoide, then **turn it back on**.
+- On Samsung phones, also check **Settings > Security and privacy > Auto Blocker**, which can block installs from
+  outside a store, and switch it off while you install.
+- Or install from a computer with `adb install Aoide-<version>.apk`.
 
 To update, install a newer APK over the old one; your models and settings are kept. Every release is signed with
 the same key, and its SHA-256 fingerprint is listed in the release notes if you want to check it
