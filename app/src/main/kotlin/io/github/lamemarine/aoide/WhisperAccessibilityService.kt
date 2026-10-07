@@ -764,31 +764,47 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     // --- Text injection ---
 
-    private fun injectText(
-        text: String,
-        feedback: String? = "Copied to clipboard",
-        feedbackDurationMs: Long = 2000
-    ) {
-        val clip = ClipData.newPlainText("phonewhisper", text)
-        (getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(clip)
-        feedback?.let { showFeedback(it, feedbackDurationMs) }
+    /**
+     * Put the dictated text into the focused field.
+     * "fallback" (default): type straight into the field; only if that fails, copy to the clipboard and paste.
+     * "always": copy to the clipboard first (so it is always there to paste again) and paste.
+     */
+    private fun injectText(text: String) {
+        val always = prefs().getString("clipboard_mode", "fallback") == "always"
+        var copied = false
+        fun copy() {
+            if (copied) return
+            copied = true
+            val clip = ClipData.newPlainText("aoide", text)
+            (getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(clip)
+        }
 
         val candidates = findInjectionCandidates()
-        Log.i(TAG, "Injecting text into ${candidates.size} candidate node(s)")
+        Log.i(TAG, "Injecting text into ${candidates.size} candidate node(s), clipboard mode=${if (always) "always" else "fallback"}")
 
         var injected = false
         try {
-            for (candidate in candidates) {
-                if (tryInjectIntoNode(candidate, text)) {
-                    injected = true
-                    break
+            if (always) {
+                copy()
+                injected = candidates.any { tryPasteInto(it) || trySetTextInto(it, text) }
+            } else {
+                injected = candidates.any { trySetTextInto(it, text) }
+                if (!injected) {
+                    copy()
+                    injected = candidates.any { tryPasteInto(it) }
                 }
             }
         } finally {
             candidates.forEach { it.recycle() }
         }
 
-        Log.i(TAG, if (injected) "Text injection action reported success" else "No injection action succeeded; clipboard fallback only")
+        Log.i(TAG, if (injected) "Text injection reported success (clipboard used: $copied)" else "No injection action succeeded; clipboard fallback only")
+        if (!injected) {
+            copy()
+            showFeedback("Couldn't type here. Copied to clipboard")
+        } else if (always && android.os.Build.VERSION.SDK_INT < 33) {
+            showFeedback("Copied to clipboard")   // Android 13+ shows its own confirmation
+        }
     }
 
     private fun findInjectionCandidates(): List<AccessibilityNodeInfo> {
@@ -859,12 +875,41 @@ class WhisperAccessibilityService : AccessibilityService() {
         return score
     }
 
-    private fun tryInjectIntoNode(node: AccessibilityNodeInfo, text: String): Boolean {
-        logNode("Trying node", node)
-        if (node.isPassword) {
-            Log.i(TAG, "Skipping a password field")
-            return false
+    /** Type [text] directly into an editable field, at the cursor or over the selection. No clipboard involved. */
+    private fun trySetTextInto(node: AccessibilityNodeInfo, text: String): Boolean {
+        logNode("Trying set-text on node", node)
+        if (node.isPassword) { Log.i(TAG, "Skipping a password field"); return false }
+        if (!(node.isEditable || node.className?.toString()?.contains("EditText") == true)) return false
+
+        node.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+        // An empty field may report its hint as its text; treat that as empty.
+        val current = if (node.isShowingHintText) "" else node.text?.toString().orEmpty()
+        val start = if (node.textSelectionStart in 0..current.length) node.textSelectionStart else current.length
+        val end = if (node.textSelectionEnd in 0..current.length) node.textSelectionEnd else start
+        val from = minOf(start, end)
+        val to = maxOf(start, end)
+        val updated = current.replaceRange(from, to, text)
+        val args = Bundle().apply {
+            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, updated)
         }
+        val ok = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+        Log.i(TAG, "ACTION_SET_TEXT => $ok")
+        if (ok) {
+            // Leave the cursor after the inserted text, as typing would.
+            val caret = from + text.length
+            val sel = Bundle().apply {
+                putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, caret)
+                putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, caret)
+            }
+            node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, sel)
+        }
+        return ok
+    }
+
+    /** Paste whatever is on the clipboard into the field. The caller must have put the text there first. */
+    private fun tryPasteInto(node: AccessibilityNodeInfo): Boolean {
+        logNode("Trying paste on node", node)
+        if (node.isPassword) { Log.i(TAG, "Skipping a password field"); return false }
 
         node.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
 
@@ -876,27 +921,7 @@ class WhisperAccessibilityService : AccessibilityService() {
 
         val pasteOk = node.performAction(AccessibilityNodeInfo.ACTION_PASTE)
         Log.i(TAG, "ACTION_PASTE => $pasteOk")
-        if (pasteOk) return true
-
-        if (node.isEditable || node.className?.toString()?.contains("EditText") == true) {
-            val current = node.text?.toString().orEmpty()
-            val start = if (node.textSelectionStart >= 0) node.textSelectionStart else current.length
-            val end = if (node.textSelectionEnd >= 0) node.textSelectionEnd else start
-            val replacementStart = minOf(start, end)
-            val replacementEnd = maxOf(start, end)
-            val updated = current.replaceRange(replacementStart, replacementEnd, text)
-            val args = Bundle().apply {
-                putCharSequence(
-                    AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
-                    updated
-                )
-            }
-            val setTextOk = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
-            Log.i(TAG, "ACTION_SET_TEXT => $setTextOk")
-            if (setTextOk) return true
-        }
-
-        return false
+        return pasteOk
     }
 
     private fun findCustomPasteAction(node: AccessibilityNodeInfo): AccessibilityNodeInfo.AccessibilityAction? =

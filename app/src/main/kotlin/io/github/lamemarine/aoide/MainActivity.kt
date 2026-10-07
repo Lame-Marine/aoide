@@ -59,6 +59,7 @@ class MainActivity : AppCompatActivity() {
 
     // ---- settings ----
     private lateinit var modeSub: TextView
+    private lateinit var clipSub: TextView
     private lateinit var opacitySub: TextView
     private lateinit var sizeSub: TextView
     private lateinit var languageSub: TextView
@@ -482,6 +483,10 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(section("Bubble", listOf(modeRow, opacityRow, slider, sizeRow, sizeSlider)))
 
+        val clipRow = settingsRow("Clipboard", clipLabel()) { chooseClipboard() }
+        clipSub = clipRow.findViewWithTag("subtitle")
+        root.addView(section("Output", listOf(clipRow)))
+
         // Speech
         val langRow = settingsRow("Language", languageText()) { chooseLanguage() }
         languageSub = langRow.findViewWithTag("subtitle")
@@ -580,6 +585,26 @@ class MainActivity : AppCompatActivity() {
 
     private fun sizePct() = prefs().getInt("button_size", 100).coerceIn(60, 160)
     private fun opacityPct() = prefs().getInt("button_opacity", 85).coerceIn(20, 100)
+
+    private fun clipLabel() = when (prefs().getString("clipboard_mode", "fallback")) {
+        "always" -> "Always copy the text to the clipboard"
+        else -> "Only copy if the text can't be typed in"
+    }
+
+    private fun chooseClipboard() {
+        val keys = arrayOf("fallback", "always")
+        val labels = arrayOf("Only if typing fails (recommended)", "Always copy to the clipboard")
+        val current = keys.indexOf(prefs().getString("clipboard_mode", "fallback")).coerceAtLeast(0)
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Clipboard")
+            .setSingleChoiceItems(labels, current) { dialog, which ->
+                prefs().edit().putString("clipboard_mode", keys[which]).apply()
+                clipSub.text = clipLabel()
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
 
     private fun modeLabel() = when (prefs().getString("trigger_mode", "both")) {
         "tap" -> "Tap to start, tap to stop"
