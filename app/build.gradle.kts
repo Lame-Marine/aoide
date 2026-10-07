@@ -5,19 +5,19 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-// Upload-key settings live OUTSIDE the repo. Point UTTER_KEYSTORE_PROPERTIES at the file, or put a (gitignored)
+// Upload-key settings live OUTSIDE the repo. Point AOIDE_KEYSTORE_PROPERTIES at the file, or put a (gitignored)
 // keystore.properties next to the root build.gradle.kts. Without it, release builds are simply left unsigned.
 val keystoreProps = Properties().also { props ->
-    val f = file(System.getenv("UTTER_KEYSTORE_PROPERTIES") ?: "${rootDir}/keystore.properties")
+    val f = file(System.getenv("AOIDE_KEYSTORE_PROPERTIES") ?: "${rootDir}/keystore.properties")
     if (f.exists()) f.inputStream().use { props.load(it) }
 }
 
 android {
-    namespace = "io.github.lamemarine.utter"
+    namespace = "io.github.lamemarine.aoide"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "io.github.lamemarine.utter"
+        applicationId = "io.github.lamemarine.aoide"
         minSdk = 30
         targetSdk = 36
         versionCode = 4

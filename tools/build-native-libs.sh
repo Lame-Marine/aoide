@@ -2,7 +2,7 @@
 # Builds the sherpa-onnx native libraries for Android arm64-v8a WITHOUT text-to-speech.
 #
 # Why: the prebuilt upstream libraries include the TTS stack, which statically links espeak-ng (GPL-3.0).
-# Utter only does speech-to-text, so we build with SHERPA_ONNX_ENABLE_TTS=OFF. That leaves only
+# Aoide only does speech-to-text, so we build with SHERPA_ONNX_ENABLE_TTS=OFF. That leaves only
 # Apache-2.0 / MIT code (sherpa-onnx, kaldi-native-fbank, OpenFst, ONNX Runtime, ...) in the binaries.
 #
 # Needs: git, curl, unzip, CMake >= 3.22, Ninja, and Android NDK r27 (set ANDROID_NDK).

@@ -1,4 +1,4 @@
-package io.github.lamemarine.utter
+package io.github.lamemarine.aoide
 
 import android.accessibilityservice.AccessibilityService
 import android.content.ClipData
@@ -660,7 +660,7 @@ class WhisperAccessibilityService : AccessibilityService() {
                 }
             }
         } else {
-            reset("No speech model installed. Open Utter and download one")
+            reset("No speech model installed. Open Aoide and download one")
         }
     }
 

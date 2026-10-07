@@ -1,4 +1,4 @@
-package io.github.lamemarine.utter
+package io.github.lamemarine.aoide
 
 import org.junit.Assert.assertEquals
 import org.junit.Test

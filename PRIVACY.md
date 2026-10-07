@@ -1,6 +1,6 @@
 # Privacy
 
-Utter is an Android dictation app. It records speech while you use the bubble, turns it into text on the
+Aoide is an Android dictation app. It records speech while you use the bubble, turns it into text on the
 device, and inserts the text into the focused field.
 
 ## What stays on your phone
@@ -19,7 +19,7 @@ connects to the internet: there are no accounts, analytics, ads, crash reporting
 
 ## Accessibility service
 
-Utter uses an accessibility service only to show the bubble next to the keyboard and to insert the transcribed text
+Aoide uses an accessibility service only to show the bubble next to the keyboard and to insert the transcribed text
 into the focused text field. It does not read, store, or transmit the contents of other apps.
 
 ## Debug mode

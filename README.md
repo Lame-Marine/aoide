@@ -1,4 +1,4 @@
-# Utter
+# Aoide
 
 Offline voice typing for Android. A small floating bubble sits over your keyboard; speak, and your words are
 typed into whatever text field is focused. Everything is processed **on your phone**: no account, no cloud, no
@@ -24,7 +24,7 @@ service instead of replacing your keyboard.
 
 ## Install
 
-Utter is sideloaded; it is not on Google Play (Play restricts accessibility apps).
+Aoide is sideloaded; it is not on Google Play (Play restricts accessibility apps).
 
 Requirements: JDK 17, the Android SDK (platform 34+), and for the one-time native build the Android NDK r27 and
 CMake with Ninja. Android Studio's bundled JDK works.
@@ -41,11 +41,11 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 On the phone:
 
-1. Open Utter and grant the microphone permission.
-2. Turn on the Utter accessibility service (Settings > Accessibility > Installed apps).
+1. Open Aoide and grant the microphone permission.
+2. Turn on the Aoide accessibility service (Settings > Accessibility > Installed apps).
    On Android 13+ a sideloaded app may first need **App info > ⋮ > Allow restricted settings**.
 3. Open the **Models** tab and download a model. Whisper Base (English) or Parakeet 110M are good starting points.
-4. Set Utter to **Unrestricted** under battery settings so Android does not stop the service.
+4. Set Aoide to **Unrestricted** under battery settings so Android does not stop the service.
    Samsung phones also have *Battery > Background usage limits > Never sleeping apps*.
 
 Only `arm64-v8a` devices are supported (nearly all modern phones). Android 11 or newer.
@@ -57,7 +57,7 @@ download. See [PRIVACY.md](PRIVACY.md).
 
 ## Credits and licence
 
-Utter is a fork of [Phone Whisper](https://github.com/kafkasl/phone-whisper) by Pol Alvarez, licensed under the
+Aoide is a fork of [Phone Whisper](https://github.com/kafkasl/phone-whisper) by Pol Alvarez, licensed under the
 Apache License 2.0, as is this project. See [LICENSE](LICENSE) and [NOTICE](NOTICE). The full third-party
 licence texts are bundled in the app (Settings > About > Open-source licences) and live in
 `app/src/main/assets/licenses/`.

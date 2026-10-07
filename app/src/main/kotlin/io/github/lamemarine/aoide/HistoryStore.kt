@@ -1,4 +1,4 @@
-package io.github.lamemarine.utter
+package io.github.lamemarine.aoide
 
 import android.content.ContentValues
 import android.content.Context

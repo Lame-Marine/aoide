@@ -1,4 +1,4 @@
-package io.github.lamemarine.utter
+package io.github.lamemarine.aoide
 
 import android.content.Context
 import android.os.Build
@@ -84,7 +84,7 @@ object Diag {
         val storageFreeMb = try { ctx.filesDir.usableSpace / (1024 * 1024) } catch (_: Exception) { -1 }
         val model = p.getString("model_name", "") ?: ""
         return listOf(
-            "App: Utter $version",
+            "App: Aoide $version",
             "Device: ${Build.MANUFACTURER} ${Build.MODEL} (${Build.DEVICE})",
             "Android: ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT}), patch ${Build.VERSION.SECURITY_PATCH}",
             "Screen: ${dm.widthPixels}x${dm.heightPixels} @ ${dm.densityDpi}dpi",
@@ -100,5 +100,5 @@ object Diag {
 
     /** Full text for sharing: device snapshot plus recorded events. */
     fun fullReport(ctx: Context): String =
-        "=== Utter debug report ===\n" + deviceReport(ctx) + "\n\n=== Events ===\n" + readLog(ctx, 250)
+        "=== Aoide debug report ===\n" + deviceReport(ctx) + "\n\n=== Events ===\n" + readLog(ctx, 250)
 }

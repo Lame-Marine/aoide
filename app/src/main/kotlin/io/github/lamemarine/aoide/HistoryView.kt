@@ -1,4 +1,4 @@
-package io.github.lamemarine.utter
+package io.github.lamemarine.aoide
 
 import android.content.ClipData
 import android.content.ClipboardManager

@@ -1,4 +1,4 @@
-package io.github.lamemarine.utter
+package io.github.lamemarine.aoide
 
 /**
  * Local, rule-based text tidy-up for dictation output. No network, no model.

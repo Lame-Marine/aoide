@@ -1,4 +1,4 @@
-package io.github.lamemarine.utter
+package io.github.lamemarine.aoide
 
 import android.Manifest
 import android.content.ClipData
@@ -183,7 +183,7 @@ class MainActivity : AppCompatActivity() {
             if (!consentGiven()) showDisclosure() else startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
         checkModel = checkRow("Speech model", "Download one in the Models tab") { show(R.id.nav_models); }
-        checkBatt = checkRow("Keep running in background", "Stops Android putting Utter to sleep") { requestBatteryExemption() }
+        checkBatt = checkRow("Keep running in background", "Stops Android putting Aoide to sleep") { requestBatteryExemption() }
         checklistWrap = section("Setup", listOf(checkMic.view, checkAcc.view, checkModel.view, checkBatt.view))
         root.addView(checklistWrap)
 
@@ -501,7 +501,7 @@ class MainActivity : AppCompatActivity() {
             infoRow("Privacy", "Audio is processed on this phone and never uploaded. The only network use is downloading models when you ask."),
             infoRow("Version", packageManager.getPackageInfo(packageName, 0).versionName ?: ""),
             consentRow(),
-            settingsRow("Open-source licences", "Components Utter is built from, and their licences") {
+            settingsRow("Open-source licences", "Components Aoide is built from, and their licences") {
                 startActivity(Intent(this, LicensesActivity::class.java))
             },
             debugToggleRow(),
@@ -550,7 +550,7 @@ class MainActivity : AppCompatActivity() {
             .setView(sc)
             .setPositiveButton("Copy") { _, _ ->
                 val cm = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
-                cm.setPrimaryClip(ClipData.newPlainText("utter debug report", Diag.fullReport(this)))
+                cm.setPrimaryClip(ClipData.newPlainText("aoide debug report", Diag.fullReport(this)))
                 toast("Copied")
             }
             .setNeutralButton("Clear events") { _, _ -> Diag.clear(this) }
@@ -662,22 +662,22 @@ class MainActivity : AppCompatActivity() {
 
     private fun consentGiven() = prefs().getBoolean("a11y_consent_v1", false)
 
-    private val disclosureText = """Utter uses Android's Accessibility Service for two things only:
+    private val disclosureText = """Aoide uses Android's Accessibility Service for two things only:
 
 • To notice when your keyboard is open, so it can show the dictation bubble next to it.
 • To type what you dictate into the text box you are using, at the cursor.
 
 To do this, the service can see which windows are on screen and the structure of the screen in front of you, to find the text box that has focus. When it inserts your words, it briefly reads that box's current text and cursor position so the words land in the right place.
 
-Utter does not collect, store, log or share what is on your screen or what you type. Your voice is processed on this phone and is never uploaded. The only time it goes online is when you choose to download a speech model.
+Aoide does not collect, store, log or share what is on your screen or what you type. Your voice is processed on this phone and is never uploaded. The only time it goes online is when you choose to download a speech model.
 
-Utter never types into password fields.
+Aoide never types into password fields.
 
 You can withdraw this at any time under Settings > About, and turn the service off in Android's Accessibility settings."""
 
     private fun showDisclosure() {
         MaterialAlertDialogBuilder(this)
-            .setTitle("Allow Utter to use the Accessibility Service?")
+            .setTitle("Allow Aoide to use the Accessibility Service?")
             .setMessage(disclosureText)
             .setCancelable(false)
             .setPositiveButton("Agree and continue") { _, _ ->
@@ -688,7 +688,7 @@ You can withdraw this at any time under Settings > About, and turn the service o
             }
             .setNegativeButton("No thanks") { _, _ ->
                 declinedThisSession = true
-                toast("Utter can't type for you without it. You can review this on the Home tab.")
+                toast("Aoide can't type for you without it. You can review this on the Home tab.")
                 refresh()
             }
             .show()
@@ -708,7 +708,7 @@ You can withdraw this at any time under Settings > About, and turn the service o
             if (!consentGiven()) { showDisclosure(); return@settingsRow }
             MaterialAlertDialogBuilder(this)
                 .setTitle("Withdraw consent?")
-                .setMessage("The bubble will stop working. You can also switch the Utter service off in Android's Accessibility settings.")
+                .setMessage("The bubble will stop working. You can also switch the Aoide service off in Android's Accessibility settings.")
                 .setPositiveButton("Withdraw") { _, _ ->
                     prefs().edit().putBoolean("a11y_consent_v1", false).apply()
                     WhisperAccessibilityService.instance?.applySettings()

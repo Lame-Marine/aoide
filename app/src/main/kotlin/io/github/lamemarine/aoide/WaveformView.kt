@@ -1,4 +1,4 @@
-package io.github.lamemarine.utter
+package io.github.lamemarine.aoide
 
 import android.content.Context
 import android.graphics.Canvas
@@ -13,7 +13,7 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * Utter's signature mint soundwave (the same shape as the app icon).
+ * Aoide's signature mint soundwave (the same shape as the app icon).
  * IDLE: static icon wave. RECORDING: live wave driven by mic level. BUSY: slow breathing wave while transcribing.
  */
 class WaveformView(context: Context) : View(context) {
