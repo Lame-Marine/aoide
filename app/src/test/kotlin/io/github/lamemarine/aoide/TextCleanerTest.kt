@@ -19,6 +19,13 @@ class TextCleanerTest {
     @Test fun fixesContractionI() = assertEquals("I'm sure I'll go.", clean("i'm sure i'll go."))
     @Test fun capsOff() = assertEquals("hello there", clean("hello there", caps = false))
     @Test fun stripsBlankAudio() = assertEquals("Hello.", clean("[BLANK_AUDIO] hello."))
+    @Test fun stripsParenthesisedSoundLabel() = assertEquals("", clean("(coughing)"))
+    @Test fun stripsLabelsAroundSpeech() = assertEquals("Hello there.", clean("(laughs) hello there. [Music]"))
+    @Test fun stripsAsteriskAndNoteLabels() = assertEquals("Okay.", clean("*sighs* okay. \u266A"))
+    @Test fun strayBracketsMeanNoSpeech() = assertEquals("", clean("[ ["))
+    @Test fun onlyPunctuationMeansNoSpeech() = assertEquals("", clean(" . , "))
+    @Test fun keepsOrdinaryParentheses() = assertEquals("See the report (page three) for details.", clean("see the report (page three) for details."))
+    @Test fun keepsBracketedWordsThatAreNotSounds() = assertEquals("Call me [later] please.", clean("call me [later] please."))
     @Test fun stripsMusicTag() = assertEquals("Hello.", clean("[ Music ] hello."))
     @Test fun spokenPunctuation() =
         assertEquals("Hello, world. Are you there?", clean("hello comma world period are you there question mark", spoken = true))

@@ -22,13 +22,22 @@ object TextCleaner {
         if (o.spokenPunct) t = spokenPunctuation(t)
         if (o.fillers.isNotEmpty()) t = removeFillers(t, o.fillers)
         t = tidy(t).trim()
+        if (t.none { it.isLetterOrDigit() }) return ""   // nothing but stray punctuation/brackets: treat as no speech
         if (o.fixCaps) t = fixCapitalisation(t)
         return t.trim()
     }
 
-    // Whisper-style non-speech tags such as [BLANK_AUDIO] or [ Music ]
+    // Whisper-style non-speech labels: [BLANK_AUDIO], [ Music ], (coughing), *sighs*, music notes.
+    // Only known sound words (or ALL_CAPS tags) are removed, so anything you actually say in brackets is kept.
+    private val soundWords = listOf(
+        "music", "silence", "applause", "laughter", "laughs", "laughing", "laugh", "noise", "noises",
+        "inaudible", "coughing", "coughs", "cough", "sigh", "sighs", "sighing", "breathing", "sneezing",
+        "sniffing", "clears throat", "clearing throat", "throat clearing", "singing", "crying", "whistling",
+        "humming", "static", "beep", "typing", "blank audio", "background noise", "no audio", "wind",
+        "speaking in foreign language", "foreign language", "unintelligible", "sound effects",
+    ).joinToString("|") { Regex.escape(it).replace("\\ ", "\\s+") }
     private val artifactRe = Regex(
-        "\\[\\s*(?:[A-Z_]{3,}[A-Z_ ]*|(?i:music|silence|applause|laughter|noise|inaudible))\\s*\\]"
+        "[\\[(*]\\s*(?:[A-Z_]{3,}[A-Z_ ]*|(?i:$soundWords))\\s*[\\])*]|[\\u266A\\u266B]+"
     )
 
     internal fun stripArtifacts(s: String) = artifactRe.replace(s, " ")
