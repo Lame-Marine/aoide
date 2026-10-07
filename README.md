@@ -49,9 +49,10 @@ sensitive data..."*. It is a blanket rule, not a finding that the app is harmful
   outside a store, and switch it off while you install.
 - Or install from a computer with `adb install Aoide-<version>.apk`.
 
-To update, install a newer APK over the old one; your models and settings are kept. Every release is signed with
-the same key, and its SHA-256 fingerprint is listed in the release notes if you want to check it
-(`apksigner verify --print-certs Aoide-<version>.apk`).
+To update, install a newer APK over the old one; your models and settings are kept. Releases on this page are all
+signed with the same key. To check an APK, run `apksigner verify --print-certs Aoide-<version>.apk`; the
+certificate SHA-256 should be
+`adf76c14331b857d12144f674fa0a20a7acfdd2047f8c92ac720f452be2c2208`.
 
 Requires an `arm64-v8a` phone (nearly all modern ones) running Android 11 or newer.
 
