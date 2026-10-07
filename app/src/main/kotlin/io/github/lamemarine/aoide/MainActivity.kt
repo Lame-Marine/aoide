@@ -60,6 +60,7 @@ class MainActivity : AppCompatActivity() {
     // ---- settings ----
     private lateinit var modeSub: TextView
     private lateinit var opacitySub: TextView
+    private lateinit var sizeSub: TextView
     private lateinit var languageSub: TextView
     private lateinit var fillerSub: TextView
     private lateinit var keepSub: TextView
@@ -461,7 +462,25 @@ class MainActivity : AppCompatActivity() {
                 override fun onStopTrackingTouch(sb: SeekBar?) {}
             })
         }
-        root.addView(section("Bubble", listOf(modeRow, opacityRow, slider)))
+        val sizeRow = settingsRow("Button size", "${sizePct()}%")
+        sizeSub = sizeRow.findViewWithTag("subtitle")
+        val sizeSlider = SeekBar(this).apply {
+            max = 100
+            progress = sizePct() - 60
+            setPadding(dp(20), 0, dp(20), dp(12))
+            val apply = Runnable { WhisperAccessibilityService.instance?.applySettings() }
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(sb: SeekBar?, value: Int, fromUser: Boolean) {
+                    val pct = value + 60
+                    prefs().edit().putInt("button_size", pct).apply()
+                    sizeSub.text = "$pct%"
+                    removeCallbacks(apply); postDelayed(apply, 350)   // rebuild once you stop moving the slider
+                }
+                override fun onStartTrackingTouch(sb: SeekBar?) {}
+                override fun onStopTrackingTouch(sb: SeekBar?) {}
+            })
+        }
+        root.addView(section("Bubble", listOf(modeRow, opacityRow, slider, sizeRow, sizeSlider)))
 
         // Speech
         val langRow = settingsRow("Language", languageText()) { chooseLanguage() }
@@ -559,6 +578,7 @@ class MainActivity : AppCompatActivity() {
         sc.post { sc.fullScroll(View.FOCUS_DOWN) }
     }
 
+    private fun sizePct() = prefs().getInt("button_size", 100).coerceIn(60, 160)
     private fun opacityPct() = prefs().getInt("button_opacity", 85).coerceIn(20, 100)
 
     private fun modeLabel() = when (prefs().getString("trigger_mode", "both")) {

@@ -114,3 +114,49 @@ class WaveformView(context: Context) : View(context) {
         }
     }
 }
+
+/** A spinning mint arc drawn around the bubble while a clip is being transcribed. */
+class SpinnerRing(context: Context) : View(context) {
+    private var spinning = false
+    private var angle = 0f
+    private var lastFrame = 0L
+    private val arc = android.graphics.RectF()
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; color = 0xFF6BFFB0.toInt()
+    }
+    private val frame = object : Runnable {
+        override fun run() {
+            if (!spinning || !isAttachedToWindow) return
+            val now = System.nanoTime()
+            val dt = if (lastFrame == 0L) 0.016f else min(0.05f, (now - lastFrame) / 1e9f)
+            lastFrame = now
+            angle = (angle + dt * 360f * 1.1f) % 360f
+            invalidate()
+            postOnAnimation(this)
+        }
+    }
+
+    fun setSpinning(on: Boolean) {
+        if (on == spinning) return
+        spinning = on
+        lastFrame = 0L
+        visibility = if (on) VISIBLE else GONE
+        if (on) postOnAnimation(frame) else removeCallbacks(frame)
+        invalidate()
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        if (spinning) postOnAnimation(frame)
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        if (!spinning) return
+        val sw = width * 0.06f
+        paint.strokeWidth = sw
+        arc.set(sw, sw, width - sw, height - sw)
+        canvas.drawArc(arc, angle, 100f, false, paint)
+        canvas.drawArc(arc, angle + 180f, 60f, false, paint.apply { alpha = 120 }.also { })
+        paint.alpha = 255
+    }
+}

@@ -57,7 +57,8 @@ class WhisperAccessibilityService : AccessibilityService() {
     private var state = State.IDLE
     private var overlayView: FrameLayout? = null
     private var button: ImageView? = null
-    private var spinner: ProgressBar? = null
+    private var spinner: SpinnerRing? = null
+    private var builtScale = 1f
     private var waveform: WaveformView? = null
     private var overlayVisible = true
     @Volatile private var touching = false
@@ -113,7 +114,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         val v = overlayView ?: return
         val p = layoutParams ?: return
         if (touching) return
-        val ring = (RING_DP * dp).toInt()
+        val ring = (RING_DP * dp * sizeScale()).toInt()
         val margin = (MARGIN_DP * dp).toInt()
         val off = p.x < 0 || p.y < 0 || p.x > screenW - ring || p.y > screenH - ring
         if (!force && !off) return
@@ -281,17 +282,14 @@ class WhisperAccessibilityService : AccessibilityService() {
     // --- Overlay ---
 
     private fun showOverlay() {
+        builtScale = sizeScale()
         val wm = getSystemService(WINDOW_SERVICE) as WindowManager
-        val buttonSize = (BTN_DP * dp).toInt()
-        val ringSize = (RING_DP * dp).toInt()
-        val pad = (PAD_DP * dp).toInt()
+        val buttonSize = (BTN_DP * dp * sizeScale()).toInt()
+        val ringSize = (RING_DP * dp * sizeScale()).toInt()
+        val pad = (PAD_DP * dp * sizeScale()).toInt()
         val margin = (MARGIN_DP * dp).toInt()
 
-        val ring = ProgressBar(this).apply {
-            isIndeterminate = true
-            indeterminateTintList = ColorStateList.valueOf(COLOR_RING)
-            visibility = View.GONE
-        }
+        val ring = SpinnerRing(this).apply { visibility = View.GONE }
 
         val img = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_INSIDE
@@ -300,7 +298,7 @@ class WhisperAccessibilityService : AccessibilityService() {
         }
 
         val wave = WaveformView(this)
-        val wavePad = (7 * dp).toInt()
+        val wavePad = (7 * dp * sizeScale()).toInt()
 
         val overlay = FrameLayout(this).apply {
             addView(ring, FrameLayout.LayoutParams(ringSize, ringSize, Gravity.CENTER))
@@ -475,7 +473,7 @@ class WhisperAccessibilityService : AccessibilityService() {
 
     private fun setBusy(visible: Boolean) {
         handler.post {
-            // transcribing is shown by the breathing wave (see setAppearance), no ring
+            spinner?.setSpinning(visible)
         }
     }
 
@@ -601,12 +599,19 @@ class WhisperAccessibilityService : AccessibilityService() {
     private fun consented() = prefs().getBoolean("a11y_consent_v1", false)
 
     private fun triggerMode() = prefs().getString("trigger_mode", "both") ?: "both"
+    private fun sizeScale() = prefs().getInt("button_size", 100).coerceIn(60, 160) / 100f
     private fun idleAlpha() = prefs().getInt("button_opacity", 85).coerceIn(20, 100) / 100f
     private fun targetAlpha() = if (state == State.IDLE) idleAlpha() else 1f
 
     /** Called from the settings screen when opacity/mode change. */
     fun applySettings() {
         handler.post {
+            if (overlayView != null && builtScale != sizeScale()) {
+                // size changed: rebuild the bubble at the new size (position is re-derived from the saved side/height)
+                try { removeOverlay() } catch (_: Exception) {}
+                showOverlay()
+                overlayVisible = false
+            }
             updateOverlayVisibility()
             overlayView?.let {
                 if (overlayVisible) { it.animate().cancel(); it.alpha = targetAlpha() }
