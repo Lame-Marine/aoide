@@ -28,3 +28,7 @@ Off by default. When you switch it on it records technical events (service resta
 health, timings) and a device and settings summary in a private file on the phone, so you can copy it for a bug
 report. It never records audio or dictated text, switches itself off after 24 hours, and its log is deleted when it
 is turned off.
+
+## Contact
+
+Questions about this policy: lamemarinenz@gmail.com
