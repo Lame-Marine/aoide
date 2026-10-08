@@ -24,6 +24,20 @@ service instead of replacing your keyboard.
 
 ## Install
 
+### Join the Google Play beta
+
+Aoide is in closed testing on Google Play. To help test:
+
+1. Join the [Aoide Closed Test group](https://groups.google.com/g/aoide-closed-test) with your Google account.
+2. On your Android phone, open the [opt-in link](https://play.google.com/apps/testing/io.github.lamemarine.aoide) and tap **Become a tester**.
+3. Install Aoide from the [Play Store page](https://play.google.com/store/apps/details?id=io.github.lamemarine.aoide).
+
+The Play version is signed with a different key from the APKs on this page, so uninstall any APK you installed from
+GitHub first. The two can't be installed side by side.
+
+### Install the APK
+
+
 1. On your phone, open the [latest release](https://github.com/Lame-Marine/aoide/releases/latest) and download
    `Aoide-<version>.apk`.
 2. Open the downloaded file. If Android asks, allow your browser or files app to install apps from this source.
